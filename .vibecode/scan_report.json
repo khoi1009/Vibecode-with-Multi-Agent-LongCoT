@@ -1,0 +1,99 @@
+{
+  "scan_date": "2026-01-03T11:11:08.810839",
+  "tech_stack": {
+    "languages": [
+      "JavaScript",
+      "Python",
+      "TypeScript"
+    ],
+    "frameworks": [],
+    "tools": []
+  },
+  "file_analysis": {
+    "total_files": 1381,
+    "total_lines": 486984,
+    "by_extension": {
+      ".md": 564,
+      ".py": 173,
+      ".ps1": 6,
+      ".sh": 14,
+      ".in": 1,
+      ".toml": 2,
+      ".txt": 102,
+      ".json": 33,
+      ".mjs": 2,
+      ".ts": 20,
+      ".yaml": 1,
+      ".db": 1,
+      ".db-journal": 1,
+      ".prisma": 1,
+      ".sql": 1,
+      ".svg": 5,
+      ".ico": 1,
+      ".css": 7,
+      ".tsx": 16,
+      ".log": 1,
+      ".js": 71,
+      ".xsd": 156,
+      ".xml": 12,
+      ".png": 4,
+      ".html": 4,
+      ".cjs": 42,
+      ".ttf": 108,
+      ".csv": 32
+    },
+    "lines_by_extension": {
+      ".md": 180584,
+      ".py": 54876,
+      ".ps1": 3309,
+      ".sh": 3241,
+      ".in": 37,
+      ".toml": 48,
+      ".txt": 6947,
+      ".json": 7480,
+      ".mjs": 25,
+      ".ts": 1848,
+      ".yaml": 4653,
+      ".db": 232,
+      ".db-journal": 91,
+      ".prisma": 168,
+      ".sql": 183,
+      ".svg": 5,
+      ".ico": 77,
+      ".css": 5280,
+      ".tsx": 2050,
+      ".log": 60,
+      ".js": 14140,
+      ".xsd": 78920,
+      ".xml": 74,
+      ".png": 48,
+      ".html": 398,
+      ".cjs": 11966,
+      ".ttf": 108424,
+      ".csv": 1820
+    }
+  },
+  "patterns": {
+    "naming_conventions": {
+      "camelCase": 36,
+      "PascalCase": 4
+    },
+    "import_styles": {
+      "ES6 default imports": 15,
+      "ES6 named imports": 29,
+      "CommonJS require": 4
+    }
+  },
+  "testing": {
+    "frameworks": [],
+    "test_files": 43,
+    "has_tests": true
+  },
+  "security": {
+    "critical_issues": [],
+    "warnings": [
+      "API key in code in App.js",
+      "API key in code in investor_demo.py"
+    ]
+  }
+}
