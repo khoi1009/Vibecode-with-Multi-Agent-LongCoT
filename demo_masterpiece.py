@@ -21,14 +21,11 @@ init()
 
 # Add core to path
 sys.path.insert(0, str(Path(__file__).parent))
-try:
-    from core.orchestrator import Orchestrator, TaskType
-    from utils.ai_providers import GeminiProvider
-except ImportError as e:
-    print(f"Error: Run this script from the root directory. Details: {e}")
-    # Also print sys.path to be sure
-    print(f"sys.path: {sys.path}")
-    sys.exit(1)
+# Add core to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from core.orchestrator import Orchestrator, TaskType
+from utils.ai_providers import GeminiProvider
 
 # Configuration
 DEMO_DIR = Path("investor_demo_masterpiece")
