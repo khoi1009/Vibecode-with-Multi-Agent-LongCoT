@@ -7,17 +7,14 @@ import json
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any
-import google.generativeai as genai
 
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+    print(f"{Colors.YELLOW}Warning: google-generativeai not installed. AI features will be simulated.{Colors.ENDC}")
 
 class KeyManager:
     """Manages secure storage of API keys"""
@@ -57,6 +54,10 @@ class GeminiProvider:
     def configure(self, api_key: str):
         """Configure the Gemini client"""
         self.api_key = api_key
+        
+        if genai is None:
+            return False
+            
         try:
             genai.configure(api_key=api_key)
             # Use gemini-1.5-flash as it is free and reliable
@@ -81,6 +82,9 @@ class GeminiProvider:
         Returns:
             Generated text response
         """
+        if genai is None:
+             return "Gemini API Error: Library 'google-generativeai' not installed."
+
         if not self.is_configured():
             return "Error: Gemini API not configured. Please run setup."
 
