@@ -150,16 +150,41 @@ class Director:
             
         response = provider.generate(prompt)
         
-        # Extract code (Simulation of the orchestrator's _process_ai_response for simplicity in demo script)
-        # We'll just define the file path and write it if the AI returned a block, or fallback
-        import re
-        match = re.search(r"```html:?(.*?)```", response, re.DOTALL)
-        if match:
-            content = match.group(1).strip()
+        if response.startswith("Gemini API Error"):
+            print(f"   {Fore.RED}>> API GENERATION FAILED: {response}{Style.RESET_ALL}")
+            print(f"   {Fore.YELLOW}>> FALLING BACK TO MOCK GENERATION FOR DEMO CONTINUITY...{Style.RESET_ALL}")
+            content = """<!DOCTYPE html>
+<html>
+<head>
+    <title>Matrix Kanban</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #000; color: #00FF41; font-family: monospace; }
+        .matrix-card { border: 1px solid #00FF41; padding: 10px; margin-bottom: 10px; box-shadow: 0 0 5px #00FF41; }
+    </style>
+</head>
+<body class="p-10">
+    <h1 class="text-3xl mb-8 font-bold border-b border-green-500">MATRIX KANBAN</h1>
+    <div class="grid grid-cols-3 gap-4">
+        <div><h2 class="text-xl mb-4">TODO</h2><div class="matrix-card">Wake up Neo</div></div>
+        <div><h2 class="text-xl mb-4">DOING</h2><div class="matrix-card">Follow White Rabbit</div></div>
+        <div><h2 class="text-xl mb-4">DONE</h2><div class="matrix-card">Free Mind</div></div>
+    </div>
+    <script>
+        console.log("Matrix LOADED");
+    </script>
+</body>
+</html>"""
         else:
-            # Fallback regex
-            match = re.search(r"```(.*?)```", response, re.DOTALL)
-            content = match.group(1).strip() if match else response
+            # Extract code (Simulation of the orchestrator's _process_ai_response for simplicity in demo script)
+            import re
+            match = re.search(r"```html:?(.*?)```", response, re.DOTALL)
+            if match:
+                content = match.group(1).strip()
+            else:
+                # Fallback regex
+                match = re.search(r"```(.*?)```", response, re.DOTALL)
+                content = match.group(1).strip() if match else response
 
         # Ensure directory exists
         PROJECT_DIR.mkdir(parents=True, exist_ok=True)

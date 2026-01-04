@@ -59,7 +59,8 @@ class GeminiProvider:
         self.api_key = api_key
         try:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            # Use gemini-1.5-flash as it is free and reliable
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
             self.key_manager.save_key(api_key)
             return True
         except Exception as e:
