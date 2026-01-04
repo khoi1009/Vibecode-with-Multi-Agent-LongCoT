@@ -11,6 +11,7 @@ import argparse
 from pathlib import Path
 from typing import Dict, List, Optional
 from core.orchestrator import Orchestrator
+from utils.ai_providers import GeminiProvider
 
 # Version
 VERSION = "1.0.0"
@@ -82,6 +83,7 @@ class VibecodeSudio:
         # Initialize components
         self.agents_available = self.detect_agents()
         self.skills_available = self.detect_skills()
+        self.ai_provider = GeminiProvider(self.workspace)
     
     def detect_agents(self) -> List[Dict]:
         """Detect available agents"""
@@ -339,6 +341,12 @@ class VibecodeSudio:
             print_success("Project initialized and ready!")
         else:
             print_info("First time? Run 'Scan Project' to get started.")
+            
+        # Check API Key
+        if not self.ai_provider.is_configured():
+            print(f"\n{Colors.YELLOW}⚠ Gemini API Key missing.{Colors.ENDC}")
+            print(f"{Colors.DIM}   Vibecode will run in simulation mode.{Colors.ENDC}")
+            print(f"{Colors.DIM}   Go to Settings (9) to configure your AI Brain.{Colors.ENDC}\n")
         
         # Main loop
         while True:
@@ -379,6 +387,35 @@ class VibecodeSudio:
             except Exception as e:
                 print_error(f"An error occurred: {e}")
                 input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
+
+    def cmd_settings(self):
+        """Configure settings"""
+        print_header("⚙️  SETTINGS")
+        
+        current_key = self.ai_provider.api_key
+        status_color = Colors.GREEN if self.ai_provider.is_configured() else Colors.RED
+        status_text = "Configured" if self.ai_provider.is_configured() else "Not Configured"
+        
+        print(f"Gemini API Status: {status_color}{status_text}{Colors.ENDC}")
+        if current_key and len(current_key) > 8:
+            masked = current_key[:4] + "*" * (len(current_key)-8) + current_key[-4:]
+            print(f"Current Key: {masked}")
+            
+        print("\nOptions:")
+        print("1. Update API Key")
+        print("2. Back")
+        
+        choice = input(f"\n{Colors.BOLD}Enter choice: {Colors.ENDC}")
+        
+        if choice == "1":
+            new_key = input("Enter Google Gemini API Key: ").strip()
+            if new_key:
+                if self.ai_provider.configure(new_key):
+                    print_success("API Key updated successfully!")
+                else:
+                    print_error("Failed to update key")
+        
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
 
 
 def main():

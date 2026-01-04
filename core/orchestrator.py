@@ -19,6 +19,7 @@ from .intent_parser import IntentParser, TaskType
 from .skill_loader import SkillLoader
 from .longcot_scanner import LongCoTScanner
 from .universal_generator import UniversalGenerator
+from utils.ai_providers import GeminiProvider
 
 
 class Colors:
@@ -81,7 +82,11 @@ class Orchestrator:
         # Initialize Long CoT scanner for intelligent code analysis
         self.longcot_scanner = LongCoTScanner(self.workspace)
         self.longcot_analysis = None
+        self.longcot_analysis = None
         self.universal_generator = UniversalGenerator(self.workspace, self.skill_loader)
+        
+        # Initialize AI Provider (The Brain)
+        self.ai_provider = GeminiProvider(self.workspace)
         
         # Run initial Long CoT analysis if existing project
         if self.is_existing_project:
@@ -355,9 +360,26 @@ class Orchestrator:
             results["agents_executed"].append(agent_result)
             results["agents_executed"].append(agent_result)
             
-            # --- ENACT REAL AGENT ROLE ---
-            # This ensures the agent actually DOES the work defined by its persona
-            self._enact_agent_role(agent_id, query, selected_skills, task_type)
+            # --- REAL AI EXECUTION ---
+            if self.ai_provider.is_configured():
+                print(f"   {Colors.MAGENTA}[AI] Generating content with Gemini Pro...{Colors.ENDC}")
+                
+                # Add format instructions to context
+                ai_context = context + "\n\n# OUTPUT FORMAT INSTRUCTIONS\n" + \
+                           "You are an autonomous coding agent. You must produce actual artifacts.\n" + \
+                           "For every file you create or modify, use a strict code block format with the filename as a prefix:\n" + \
+                           "```python:src/main.py\nprint('hello')\n```\n" + \
+                           "For plans or reports, save them as markdown files (e.g., `plan.md`)."
+                
+                response = self.ai_provider.generate(ai_context)
+                self._process_ai_response(response, self.workspace)
+                
+                agent_result["status"] = "executed (AI)"
+                agent_result["output_preview"] = response[:200] + "..."
+            else:
+                # Fallback to simulation if no key
+                print(f"   {Colors.YELLOW}[WARN] AI not configured. Running simulation...{Colors.ENDC}")
+                self._enact_agent_role(agent_id, query, selected_skills, task_type)
             
             print(f"✅ Agent {agent_id} execution complete")
         
@@ -377,6 +399,38 @@ class Orchestrator:
         print(f"{'='*60}\n")
         
         return results
+
+    def _process_ai_response(self, response: str, cwd: Path):
+        """Parse AI response and save artifacts (files)"""
+        import re
+        
+        # Regex to find code blocks with filenames: ```language:filename
+        # We accept ```python:file.py or ```:file.py
+        pattern = r"```(?:\w*):([^\s]+)\n(.*?)```"
+        matches = list(re.finditer(pattern, response, re.DOTALL))
+        
+        if matches:
+            for match in matches:
+                filename = match.group(1).strip()
+                content = match.group(2)
+                
+                # Security check: prevent ../ traversal
+                if ".." in filename:
+                    print(f"   {Colors.RED}[SKIP] Unsafe filename: {filename}{Colors.ENDC}")
+                    continue
+                    
+                filepath = cwd / filename
+                try:
+                    filepath.parent.mkdir(parents=True, exist_ok=True)
+                    filepath.write_text(content, encoding="utf-8")
+                    print(f"   {Colors.GREEN}[+] Created/Updated: {filename}{Colors.ENDC}")
+                except Exception as e:
+                    print(f"   {Colors.RED}[ERR] Failed to write {filename}: {e}{Colors.ENDC}")
+        else:
+            # parsing failed or no code blocks, maybe it's just text plan
+            # If the response is substantial, save it as a log/plan
+            print(f"   {Colors.BLUE}[INFO] No code blocks detected. Saving raw output.{Colors.ENDC}")
+            (cwd / "agent_response.md").write_text(response, encoding="utf-8")
 
     def _enact_agent_role(self, agent_id: str, query: str, skills: List, task_type: TaskType):
         """
