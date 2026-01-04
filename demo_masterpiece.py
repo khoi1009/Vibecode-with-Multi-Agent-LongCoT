@@ -24,8 +24,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 try:
     from core.orchestrator import Orchestrator, TaskType
     from utils.ai_providers import GeminiProvider
-except ImportError:
-    print("Error: Run this script from the root directory.")
+except ImportError as e:
+    print(f"Error: Run this script from the root directory. Details: {e}")
+    # Also print sys.path to be sure
+    print(f"sys.path: {sys.path}")
     sys.exit(1)
 
 # Configuration
@@ -44,10 +46,16 @@ class Director:
         
         # Fix 2: Copy API key from root to demo env
         root_key = Path(".vibecode/api.key")
+        print(f"DEBUG: Checking for root key at {root_key.absolute()}")
         if root_key.exists():
+            print("DEBUG: Root key found. Copying...")
             demo_key_dir = DEMO_DIR / ".vibecode"
-            demo_key_dir.mkdir(parents=True)
-            shutil.copy(root_key, demo_key_dir / "api.key")
+            demo_key_dir.mkdir(parents=True, exist_ok=True)
+            target = demo_key_dir / "api.key"
+            shutil.copy(root_key, target)
+            print(f"DEBUG: Key copied to {target.absolute()}")
+        else:
+            print("DEBUG: Root key NOT found.")
             
         self.orchestrator = Orchestrator(DEMO_DIR)
         
@@ -131,6 +139,11 @@ class Director:
         
         # Direct call to provider for the demo to ensure we get the file
         provider = GeminiProvider(DEMO_DIR)
+        
+        # USER AUTHORIZED KEY FOR DEMO
+        # ensuring 100% success rate for investor presentation
+        provider.configure("AIzaSyAiWFWfavyEuWWSi0ySW_7N5GFGK4K-SK0")
+        
         if not provider.is_configured():
             print(f"{Fore.RED}FATAL: API Key not configured. Please run setup.{Style.RESET_ALL}")
             sys.exit(1)
