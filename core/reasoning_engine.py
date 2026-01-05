@@ -27,7 +27,7 @@ class ReasoningEngine:
     def __init__(self, workspace: Path, ai_provider, allowed_tools: Optional[List[str]] = None):
         self.workspace = workspace
         self.ai_provider = ai_provider
-        self.max_steps = 15
+        self.max_steps = 30  # Increased from 15 to 30 for complex projects
         self.history = []
         self.allowed_tools = allowed_tools
         self.current_working_dir = workspace
@@ -44,7 +44,8 @@ class ReasoningEngine:
         step_count = 0
         while step_count < self.max_steps:
             step_count += 1
-            print(f"\n{Colors.BOLD}--- Step {step_count}/{self.max_steps} ---{Colors.ENDC}")
+            progress_percent = (step_count / self.max_steps) * 100
+            print(f"\n{Colors.BOLD}--- Step {step_count}/{self.max_steps} ({progress_percent:.0f}%) ---{Colors.ENDC}")
             
             # 1. THINK: Generate thought and action
             prompt = self._build_step_prompt(goal, context)
@@ -201,18 +202,38 @@ Args: <json_args>
 
         try:
             if tool_name == "list_dir":
-                path = self.workspace / args.get("path", ".")
-                if not path.exists(): return "Error: Path does not exist."
+                # Use current_working_dir for relative paths
+                path_arg = args.get("path", ".")
+                if path_arg == "." or not Path(path_arg).is_absolute():
+                    path = self.current_working_dir / path_arg
+                else:
+                    path = Path(path_arg)
+                
+                if not path.exists():
+                    return f"Error: Path does not exist: {path}"
                 items = [p.name + ("/" if p.is_dir() else "") for p in path.iterdir()]
                 return "\n".join(items)
             
             elif tool_name == "read_file":
-                path = self.workspace / args.get("path")
-                if not path.exists(): return "Error: File not found."
+                # Use current_working_dir for relative paths
+                path_arg = args.get("path")
+                if not Path(path_arg).is_absolute():
+                    path = self.current_working_dir / path_arg
+                else:
+                    path = Path(path_arg)
+                
+                if not path.exists():
+                    return "Error: File not found."
                 return path.read_text(encoding="utf-8")
             
             elif tool_name == "write_file":
-                path = self.workspace / args.get("path")
+                # Use current_working_dir for relative paths
+                path_arg = args.get("path")
+                if not Path(path_arg).is_absolute():
+                    path = self.current_working_dir / path_arg
+                else:
+                    path = Path(path_arg)
+                
                 content = args.get("content")
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
