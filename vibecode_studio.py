@@ -10,6 +10,15 @@ import json
 import argparse
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Fix Windows console encoding for Unicode characters
+if sys.platform == 'win32':
+    import codecs
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8')
+
 from core.orchestrator import Orchestrator
 from utils.ai_providers import GeminiProvider
 
@@ -33,13 +42,13 @@ def print_banner():
     """Display Vibecode Studio banner"""
     banner = f"""
 {Colors.CYAN}{Colors.BOLD}
-╦  ╦┬┌┐ ┌─┐┌─┐┌─┐┌┬┐┌─┐  ╔═╗┌┬┐┬ ┬┌┬┐┬┌─┐
-╚╗╔╝│├┴┐├┤ │  │ │ ││├┤   ╚═╗ │ │ │ ││││ │
- ╚╝ ┴└─┘└─┘└─┘└─┘─┴┘└─┘  ╚═╝ ┴ └─┘─┴┘┴└─┘
+========================================================
+    VIBECODE STUDIO - AI Development Team
+========================================================
 {Colors.ENDC}
 {Colors.DIM}Your AI Development Team in a Box{Colors.ENDC}
 {Colors.DIM}Version {VERSION}{Colors.ENDC}
-{Colors.DIM}───────────────────────────────────────────────────────{Colors.ENDC}
+{Colors.DIM}--------------------------------------------------------{Colors.ENDC}
 """
     print(banner)
 
@@ -155,7 +164,7 @@ class VibecodeSudio:
             ("1", "🔍 Scan Project", "Analyze current project structure"),
             ("2", "🏗️  Build Feature", "Create new feature with agents"),
             ("3", "🐛 Fix Bug", "Diagnose and fix issues"),
-            ("4", "🎨 Design UI", "Create or improve UI/UX"),
+            ("4", "🚀 New Fullstack App", "Scaffold a new project from scratch"),
             ("5", "✅ Run Tests", "Generate and run tests"),
             ("6", "📦 Ship Release", "Prepare for deployment"),
             ("7", "🤖 List Agents", "Show all available agents"),
@@ -231,6 +240,152 @@ class VibecodeSudio:
         
         input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
     
+    def cmd_new_project(self):
+        """Create a new fullstack project"""
+        print_header("🚀 NEW FULLSTACK APP")
+        
+        print(f"\n{Colors.BOLD}Project Details:{Colors.ENDC}")
+        name = input("Project Name (e.g., 'nebula-board'): ").strip()
+        desc = input("Description (e.g., 'A Kanban board with Next.js and Python'): ").strip()
+        
+        if not name or not desc:
+            print_error("Name and description are required.")
+            return
+
+        # === PHASE 1: PLANNING (Agent 01) ===
+        print_section("Phase 1: Architecture Planning (Agent 01)...")
+        
+        from core.skill_loader import SkillLoader
+        from agents import load_all_agents
+        
+        agents_dir = Path(__file__).parent / "agents"
+        agents = load_all_agents(agents_dir)
+        skills_dir = self.workspace / "skills"
+        skill_loader = SkillLoader(skills_dir)
+        
+        # Load Agent 01 (Planner)
+        agent_01 = agents.get("01")
+        if not agent_01:
+            print_error("Agent 01 (Planner) not found. Skipping planning phase.")
+            return
+        
+        # Select skills for planning
+        planning_skills_with_score = skill_loader.select_skills(desc, agent_id="01", max_skills=3)
+        planning_skills_context = skill_loader.build_skills_context([s for s, _ in planning_skills_with_score])
+        
+        if planning_skills_with_score:
+            print_info(f"   + Planning Skills: {', '.join([s.name for s, _ in planning_skills_with_score])}")
+        
+        # Build planning context
+        planning_context = f"""
+{agent_01.instructions}
+
+EXPERT KNOWLEDGE (SKILLS):
+{planning_skills_context}
+
+TASK: Create architecture plan and contract for new project.
+Project Name: {name}
+Description: {desc}
+
+Execute your THREE-PHASE PROTOCOL:
+1. INTAKE: Gather requirements (ask clarifying questions if needed, but provide sensible defaults)
+2. BLUEPRINT: Design the architecture
+3. CONTRACT: Create detailed implementation plan
+
+Output the complete contract in markdown format with:
+- Executive Summary
+- Type Definitions (interfaces/schemas)
+- Component Architecture (file paths, responsibilities)
+- Implementation Checklist (sequential steps)
+- Dependencies to install
+"""
+        
+        # Generate plan using AI
+        print_info("   + Generating architecture blueprint...")
+        plan = self.ai_provider.generate(planning_context)
+        
+        # Save plan to workspace
+        plan_file = self.workspace / name / "docs" / "vibecode_plan.md"
+        plan_file.parent.mkdir(parents=True, exist_ok=True)
+        plan_file.write_text(plan, encoding='utf-8')
+        
+        print_success(f"   + Plan saved to: {plan_file.relative_to(self.workspace)}")
+        print_info("\n--- PLAN PREVIEW ---")
+        print(Colors.DIM + plan[:500] + "..." + Colors.ENDC)
+        print_info("--- END PREVIEW ---\n")
+        
+        # Ask for approval
+        approval = input(f"{Colors.BOLD}Approve this plan and proceed to build? (y/n): {Colors.ENDC}")
+        if approval.lower() != 'y':
+            print_warning("Build cancelled. Plan saved for review.")
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
+            return
+        
+        # === PHASE 2: EXECUTION (Agent 02 with ReasoningEngine) ===
+        print_section("Phase 2: Autonomous Execution (Agent 02)...")
+        
+        from core.reasoning_engine import ReasoningEngine
+        
+        # Load Agent 02 (Builder)
+        agent_02 = agents.get("02")
+        agent_persona = agent_02.instructions if agent_02 else "You are an expert fullstack developer."
+        
+        # Load skills for execution
+        execution_skills_with_score = skill_loader.select_skills(desc, agent_id="02", max_skills=3)
+        execution_skills_context = skill_loader.build_skills_context([s for s, _ in execution_skills_with_score])
+        
+        if execution_skills_with_score:
+            print_info(f"   + Execution Skills: {', '.join([s.name for s, _ in execution_skills_with_score])}")
+        
+        # Initialize ReasoningEngine with FULL capabilities
+        engine = ReasoningEngine(self.workspace, self.ai_provider)
+        
+        # Build execution prompt with the plan
+        prompt = f"""You are implementing the project '{name}' according to the approved architecture plan.
+
+PROJECT PLAN (created by Agent 01):
+{plan}
+
+EXECUTION INSTRUCTIONS:
+1. Follow the Implementation Checklist from the plan step-by-step
+2. Create all files in the specified paths
+3. Use the exact type definitions from the contract
+4. Install all required dependencies
+5. Ensure the project structure matches the plan
+
+You are authorized to run all necessary commands (npm install, mkdir, etc.).
+Begin implementation now."""
+        
+        # Build execution context
+        context = f"""
+ACT AS: Agent 02 (Builder).
+
+YOUR PERSONA:
+{agent_persona}
+
+EXPERT KNOWLEDGE (SKILLS):
+{execution_skills_context}
+
+APPROVED ARCHITECTURE PLAN:
+You MUST follow the plan created by Agent 01. Do not deviate from the contract.
+
+MISSION:
+Execute the implementation checklist to create '{name}'.
+"""
+        
+        # Execute with ReasoningEngine
+        print_info("   + Starting autonomous build process...")
+        result = engine.run_goal(prompt, context)
+        
+        if result.get("success"):
+            print_success(f"\n✅ Project '{name}' generated and configured!")
+            print_info(f"   • Architecture Plan: {plan_file.relative_to(self.workspace)}")
+            print_info(f"   • Project Location: {name}/")
+        else:
+            print_error(f"\n❌ Build encountered issues: {result.get('reason', 'Unknown')}")
+        
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
+
     def cmd_fix_bug(self):
         """Fix a bug using Agent 07 (Medic)"""
         print_header("🐛 FIX BUG")
@@ -363,8 +518,7 @@ class VibecodeSudio:
                 elif choice == "3":
                     self.cmd_fix_bug()
                 elif choice == "4":
-                    print_info("UI Design feature coming soon!")
-                    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
+                    self.cmd_new_project()
                 elif choice == "5":
                     print_info("Test generation feature coming soon!")
                     input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
@@ -385,7 +539,9 @@ class VibecodeSudio:
                 print(f"\n\n{Colors.CYAN}Thanks for using Vibecode Studio! 👋{Colors.ENDC}\n")
                 break
             except Exception as e:
+                import traceback
                 print_error(f"An error occurred: {e}")
+                print(f"{Colors.RED}{traceback.format_exc()}{Colors.ENDC}")
                 input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
 
     def cmd_settings(self):

@@ -142,12 +142,13 @@ class Director:
         provider.configure("AIzaSyAiWFWfavyEuWWSi0ySW_7N5GFGK4K-SK0")
         
         if not provider.is_configured():
-            print(f"{Fore.RED}FATAL: API Key not configured. Please run setup.{Style.RESET_ALL}")
-            sys.exit(1)
+            print(f"{Fore.YELLOW}Warning: API Key not configured or Gemini lib missing. Switching to SIMULATION MODE.{Style.RESET_ALL}")
+            # continue execution to hit the fallback below
             
         response = provider.generate(prompt)
         
-        if response.startswith("Gemini API Error"):
+        # Check for any error (API Error from genai or Config Error from provider)
+        if response.startswith("Gemini API Error") or response.startswith("Error:"):
             print(f"   {Fore.RED}>> API GENERATION FAILED: {response}{Style.RESET_ALL}")
             print(f"   {Fore.YELLOW}>> FALLING BACK TO MOCK GENERATION FOR DEMO CONTINUITY...{Style.RESET_ALL}")
             content = """<!DOCTYPE html>

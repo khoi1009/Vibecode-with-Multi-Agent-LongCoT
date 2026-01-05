@@ -1,0 +1,26 @@
+=== STDOUT ===
+
+
+=== STDERR ===
+C:\Users\DELL\Downloads\Vibecode-with-Multi-Agent-LongCoT-main\Vibecode-with-Multi-Agent-LongCoT-main\utils\ai_providers.py:22: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+Traceback (most recent call last):
+  File "C:\Users\DELL\Downloads\Vibecode-with-Multi-Agent-LongCoT-main\Vibecode-with-Multi-Agent-LongCoT-main\vibecode_studio.py", line 592, in <module>
+    main()
+  File "C:\Users\DELL\Downloads\Vibecode-with-Multi-Agent-LongCoT-main\Vibecode-with-Multi-Agent-LongCoT-main\vibecode_studio.py", line 588, in main
+    app.run()
+  File "C:\Users\DELL\Downloads\Vibecode-with-Multi-Agent-LongCoT-main\Vibecode-with-Multi-Agent-LongCoT-main\vibecode_studio.py", line 476, in run
+    print_banner()
+  File "C:\Users\DELL\Downloads\Vibecode-with-Multi-Agent-LongCoT-main\Vibecode-with-Multi-Agent-LongCoT-main\vibecode_studio.py", line 44, in print_banner
+    print(banner)
+  File "C:\Users\DELL\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2566' in position 13: character maps to <undefined>

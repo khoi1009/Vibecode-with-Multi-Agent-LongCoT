@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom font imports - using Google Fonts for a modern, professional look */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Montserrat:wght@600;700&display=swap');
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply font-inter antialiased bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-montserrat; /* Montserrat for headings, Inter for body */
+  }
+  /* Ensure charts have consistent styling */
+  .recharts-wrapper {
+    @apply font-inter;
+  }
+}
+
+/* Custom scrollbar for a polished look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: theme('colors.gray.100');
+  @apply dark:bg-gray-800;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: theme('colors.primary.400');
+  @apply dark:bg-accent-500;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.primary.500');
+  @apply dark:bg-accent-600;
+}
+
+/* Base styles for a clean slate */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid theme('colors.accent.500');
+  outline-offset: 2px;
+  border-radius: 2px; /* Slight border-radius for focus outline */
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

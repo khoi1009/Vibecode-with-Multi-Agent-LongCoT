@@ -1,0 +1,32 @@
+{
+  "name": "vibecode-with-multi-agent-longcot-main",
+  "version": "1.0.0",
+  "description": "[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)](docs/longcot/INTEGRATION_COMPLETE.md) [![Skills](https://img.shields.io/badge/Skills-36%20Premium-gold.svg)](skills/) [![Context](https://img.shields.io/badge/AI%20Context-15.9x%20Enhanced-success.svg)](#-skills-system-15x-enhanced-ai-context) [![Long CoT](https://img.shields.io/badge/Long_CoT-98%25_Confidence-purple.svg)](docs/longcot/LONGCOT_INDEX.md)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khoi1009/Vibecode-with-Multi-Agent-LongCoT.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/khoi1009/Vibecode-with-Multi-Agent-LongCoT/issues"
+  },
+  "homepage": "https://github.com/khoi1009/Vibecode-with-Multi-Agent-LongCoT#readme",
+  "dependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3"
+  }
+}

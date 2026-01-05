@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Matrix Kanban</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #00FF41;
+            font-family: monospace;
+        }
+
+        .matrix-card {
+            border: 1px solid #00FF41;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 0 5px #00FF41;
+        }
+    </style>
+</head>
+
+<body class="p-10">
+    <h1 class="text-3xl mb-8 font-bold border-b border-green-500">MATRIX KANBAN</h1>
+    <div class="grid grid-cols-3 gap-4">
+        <div>
+            <h2 class="text-xl mb-4">TODO</h2>
+            <div class="matrix-card">Wake up Neo</div>
+        </div>
+        <div>
+            <h2 class="text-xl mb-4">DOING</h2>
+            <div class="matrix-card">Follow White Rabbit</div>
+        </div>
+        <div>
+            <h2 class="text-xl mb-4">DONE</h2>
+            <div class="matrix-card">Free Mind</div>
+        </div>
+    </div>
+    <script>
+        console.log("Matrix LOADED");
+    </script>
+</body>
+
+</html>

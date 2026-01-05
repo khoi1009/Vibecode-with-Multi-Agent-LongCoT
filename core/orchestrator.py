@@ -20,6 +20,8 @@ from .skill_loader import SkillLoader
 from .longcot_scanner import LongCoTScanner
 from .universal_generator import UniversalGenerator
 from utils.ai_providers import GeminiProvider
+from core.diagnostician import Diagnostician, ErrorType
+from core.reasoning_engine import ReasoningEngine
 
 
 class Colors:
@@ -87,6 +89,7 @@ class Orchestrator:
         
         # Initialize AI Provider (The Brain)
         self.ai_provider = GeminiProvider(self.workspace)
+        self.diagnostician = Diagnostician(self.ai_provider)
         
         # Run initial Long CoT analysis if existing project
         if self.is_existing_project:
@@ -467,6 +470,19 @@ class Orchestrator:
         elif agent_id == "02":
             print(f"\n{Colors.GREEN}[Agent 02] Executing Code Construction...{Colors.ENDC}")
             
+            # Check if Agent 01 has created a plan file
+            project_name = self.universal_generator._extract_project_name(query)
+            target_dir = self.workspace / project_name
+            plan_file = target_dir / "implementation_plan.md"
+            
+            # Load existing plan if available
+            plan_content = ""
+            if plan_file.exists():
+                plan_content = plan_file.read_text(encoding='utf-8')
+                print(f"   {Colors.CYAN}[INFO] Loading architecture plan from Agent 01...{Colors.ENDC}")
+            else:
+                print(f"   {Colors.YELLOW}[WARN] No plan file found. Agent 02 will work without contract.{Colors.ENDC}")
+            
             if task_type == TaskType.REFACTOR_CODE:
                 print("   [INFO] Refactoring existing codebase...")
                 print("   [DIFF] - Removed 14 lines of duplicate logic")
@@ -479,8 +495,60 @@ class Orchestrator:
                  print("   [INFO] Applying bug fix...")
                  print("   [PATCH] Resolved null pointer exception in logic")
             else:
-                # The UniversalGenerator IS the Builder's tool for NEW features
-                self.universal_generator.generate(query)
+                # [Anti-Gravity Upgrade] Use Reasoning Engine for smart build
+                print(f"   {Colors.CYAN}[Agent 02] Initializing Antigravity Reasoning Engine...{Colors.ENDC}")
+                engine = ReasoningEngine(self.workspace, self.ai_provider)
+                
+                # Context for the engine
+                # [Antigravity Upgrade] Inject FULL skill content + Agent 01 plan
+                skills_list = [s for s, _ in skills]
+                skills_content = self.skill_loader.build_skills_context(skills_list)
+                
+                # Build enhanced prompt with plan (if available)
+                if plan_content:
+                    prompt = f"""You are implementing the following task according to the architecture plan created by Agent 01 (Architect).
+
+APPROVED ARCHITECTURE PLAN:
+{plan_content}
+
+EXECUTION INSTRUCTIONS:
+1. Follow the Implementation Checklist from the plan step-by-step
+2. Create all files in the specified paths
+3. Use the exact type definitions from the contract
+4. Respect the component architecture and dependencies
+5. Maintain consistency with the approved design
+
+Original Request: {query}
+
+Begin implementation now, strictly following the plan."""
+                else:
+                    # No plan available, work autonomously
+                    prompt = f"""You are implementing the following task autonomously.
+
+Task: {query}
+
+Create a well-architected solution with proper file structure, type definitions, and best practices.
+"""
+                
+                context = f"""
+                Task Type: {task_type.value}
+                
+                ACTIVE SKILLS (Documentation & Patterns):
+                {skills_content}
+                
+                ARCHITECTURE CONSTRAINT:
+                {"You MUST follow the approved plan from Agent 01. Do not deviate." if plan_content else "No formal plan provided. Use best architectural judgment."}
+                """
+                
+                # Execute
+                result = engine.run_goal(prompt, context)
+                
+                if result["success"]:
+                    print(f"   {Colors.GREEN}[SUCCESS] Agent 02 completed the build via Reasoning.{Colors.ENDC}")
+                else:
+                    print(f"   {Colors.RED}[FAIL] Agent 02 failed: {result.get('reason')}{Colors.ENDC}")
+                    # Fallback to template if reasoning fails? 
+                    # For now, let's trust the engine or fail.
         
         # Agent 03: Designer -> Enhances UI (Optional)
         elif agent_id == "03":
@@ -585,27 +653,114 @@ class Orchestrator:
                     break
         
     def _autofix_error(self, log: str, cwd: Path) -> bool:
-        """Parses error logs and applies automatic fixes"""
-        import re
+        """
+        [Phase 2 Upgrade] Intelligent Auto-Fix using Diagnostician + Gemini
+        """
+        print(f"   {Colors.CYAN}[Ag 05 Medic] Initializing Diagnose & Treat protocol...{Colors.ENDC}")
         
-        # 1. Missing Module
-        match = re.search(r"No module named '(\w+)'", log)
-        if match:
-            module = match.group(1)
-            print(f"   [Ag 00] Identifying Root Cause: Missing Dependency '{module}'")
-            print(f"   [Ag 02] Patching Environment...")
-            subprocess.run([sys.executable, "-m", "pip", "install", module], cwd=cwd, capture_output=True)
-            return True
-            
-        # 2. Port Conflict (Address already in use)
-        if "Address already in use" in log:
-            print(f"   [Ag 00] Root Cause: Port 8000 Busy")
-            print(f"   [Ag 02] Killing rogue process...")
-            # Windows kill command (simple version)
-            subprocess.run("taskkill /F /IM python.exe", shell=True, capture_output=True) 
-            return True
-
+        # 1. Diagnose
+        diagnosis = self.diagnostician.analyze_error(log)
+        print(f"   [Diagnosis] Type: {diagnosis.error_type.value}")
+        print(f"   [Diagnosis] Root Cause: {diagnosis.root_cause}")
+        print(f"   [Diagnosis] Prescription: {diagnosis.suggested_fix}")
+        
+        # 2. Treat based on type
+        if diagnosis.error_type == ErrorType.ENVIRONMENT:
+            # Handle missing modules or system issues
+            if "pip" in diagnosis.suggested_fix.lower() or "install" in diagnosis.suggested_fix.lower():
+                # Extract package name (simple heuristic for now, can be improved)
+                import re
+                match = re.search(r"install (\w+)", diagnosis.suggested_fix.lower())
+                package = match.group(1) if match else None
+                if package:
+                    print(f"   [Treatment] Installing missing dependency: {package}")
+                    subprocess.run([sys.executable, "-m", "pip", "install", package], cwd=cwd, capture_output=True)
+                    return True
+                    
+        elif diagnosis.error_type in [ErrorType.LOGIC, ErrorType.SYNTAX, ErrorType.RUNTIME]:
+            # Handle Code Fixes
+            if diagnosis.file_path:
+                target_file = cwd / diagnosis.file_path
+                # Try to find file if path is relative or just filename
+                if not target_file.exists():
+                    found_files = list(cwd.rglob(diagnosis.file_path))
+                    if found_files:
+                        target_file = found_files[0]
+                
+                if target_file.exists():
+                    return self._apply_code_patch(target_file, diagnosis, log)
+                else:
+                    print(f"   [Treatment Failed] Could not locate file: {diagnosis.file_path}")
+            else:
+                 print(f"   [Treatment Failed] No specific file identified in diagnosis.")
+                 
         return False
+
+    def _apply_code_patch(self, file_path: Path, diagnosis, error_log: str) -> bool:
+        """
+        Generates a patch using Gemini and applies it to the file.
+        """
+        print(f"   {Colors.GREEN}[Ag 05 Medic] Generating Surgical Patch for {file_path.name}...{Colors.ENDC}")
+        
+        original_code = file_path.read_text(encoding="utf-8")
+        
+        prompt = f"""
+        ACT AS: Senior Python Developer (The "Medic").
+        
+        TASK: Fix the code based on the diagnosis and error log.
+        
+        FILE: {file_path.name}
+        CONTENT:
+        ```python
+        {original_code}
+        ```
+        
+        ERROR DIAGNOSIS:
+        Type: {diagnosis.error_type.value}
+        Cause: {diagnosis.root_cause}
+        Fix: {diagnosis.suggested_fix}
+        
+        FULL ERROR LOG:
+        {error_log}
+        
+        INSTRUCTIONS:
+        1. Return the FULL CORRECTED CONTENT of the file.
+        2. Do not use diffs. Return the whole file.
+        3. Ensure the fix addresses the specific error.
+        4. Maintain existing style and comments.
+        
+        OUTPUT FORMAT:
+        ```python:{file_path.name}
+        ... fixed code ...
+        ```
+        """
+        
+        response = self.ai_provider.generate(prompt)
+        
+        # Parse the response to extract the code
+        import re
+        # Look for code block matching the filename or just python/generic block
+        pattern = r"```(?:\w*):?.*?\n(.*?)```"
+        match = re.search(pattern, response, re.DOTALL)
+        
+        if match:
+            new_content = match.group(1)
+            # Safety check: Don't replace with empty file
+            if len(new_content) < 10:
+                print(f"   [Patch Failed] Generated content too short/invalid.")
+                return False
+                
+            # Create backup
+            backup_path = file_path.with_suffix(file_path.suffix + ".bak")
+            file_path.rename(backup_path)
+            
+            # Write new content
+            file_path.write_text(new_content, encoding="utf-8")
+            print(f"   {Colors.GREEN}[✓] Patch Applied. Original saved as .bak{Colors.ENDC}")
+            return True
+        else:
+            print(f"   [Patch Failed] Could not extract code from Medic response.")
+            return False
     def _build_agent_context(self, agent: Agent, query: str, params: Dict, 
                             selected_skills: List, previous_results: List,
                             longcot_analysis: Optional[Dict] = None) -> str:
