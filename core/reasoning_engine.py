@@ -12,6 +12,16 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+# Import dependencies
+from .tool_registry import ToolRegistry
+
+# Import AgentType from tools (use absolute path with sys.path modification)
+from pathlib import Path
+_tools_dir = Path(__file__).parent / 'tools'
+if str(_tools_dir) not in sys.path:
+    sys.path.insert(0, str(_tools_dir))
+from tool_base import AgentType
+
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -24,13 +34,37 @@ class Colors:
     DIM = '\033[2m'
 
 class ReasoningEngine:
-    def __init__(self, workspace: Path, ai_provider, allowed_tools: Optional[List[str]] = None):
+    def __init__(self, workspace: Path, ai_provider, agent_id: str = "02",
+                 allowed_tools: Optional[List[str]] = None):
         self.workspace = workspace
         self.ai_provider = ai_provider
         self.max_steps = 30  # Increased from 15 to 30 for complex projects
         self.history = []
         self.allowed_tools = allowed_tools
+        self.agent_id = agent_id
         self.current_working_dir = workspace
+
+        # Initialize ToolRegistry for extended tool capabilities
+        self.tool_registry = ToolRegistry(workspace)
+
+        # Get tools available to this agent
+        self.agent_type = self._determine_agent_type(agent_id)
+        self.available_tools = self.tool_registry.get_tools_for_agent(
+            agent_id, self.agent_type
+        )
+
+    def _determine_agent_type(self, agent_id: str) -> AgentType:
+        """Determine agent type from ID for permission purposes"""
+        agent_type_map = {
+            "00": AgentType.FORENSIC,
+            "01": AgentType.ARCHITECT,
+            "02": AgentType.BUILDER,
+            "03": AgentType.DESIGNER,
+            "04": AgentType.FORENSIC,
+            "05": AgentType.INTEGRATOR,
+            "09": AgentType.QA,
+        }
+        return agent_type_map.get(agent_id, AgentType.ALL)
 
     def run_goal(self, goal: str, context: str = "") -> Dict[str, Any]:
         """
@@ -97,6 +131,10 @@ class ReasoningEngine:
 
     def _build_system_prompt(self) -> str:
         os_name = platform.system()
+
+        # Get tool descriptions from the registry
+        tool_docs = self.tool_registry.get_tool_descriptions(self.available_tools)
+
         return f"""
 You are an autonomous coding agent. You have access to the user's filesystem and can execute commands.
 Your goal is to complete the user's request by adhering to the ReAct loop:
@@ -112,16 +150,19 @@ OPERATING SYSTEM CONSTRAINTS ({os_name}):
 COMMAND BEST PRACTICES:
 - Use simple mkdir instead of complex scaffolding tools when possible
 - For Next.js: Use 'npx create-next-app@latest <name> --typescript --tailwind --app'
-- npx prompts are auto-confirmed, no need to worry about "Ok to proceed?" 
+- npx prompts are auto-confirmed, no need to worry about "Ok to proceed?"
 - Avoid outdated or deprecated flags
 - If a command fails, try a simpler alternative
 
-AVAILABLE TOOLS:
+CORE TOOLS (Basic Operations):
 - list_dir(path): List files in a directory.
 - read_file(path): Read the contents of a file.
 - write_file(path, content): Write content to a file (overwrites).
 - run_command(command): Run a shell command (e.g., 'npm install', 'mkdir').
 - finish_task(summary): Call this when the goal is achieved.
+
+EXTENDED TOOLS (Enhanced Capabilities):
+{tool_docs}
 
 RESPONSE FORMAT:
 You must strictly follow this format for every turn. Do not output markdown code blocks for the Thought/Action.
@@ -200,6 +241,32 @@ Args: <json_args>
         if self.allowed_tools and tool_name not in self.allowed_tools:
             return f"Error: Tool '{tool_name}' is not allowed in this mode."
 
+        # Try to use tool registry for extended tools
+        tool = self.tool_registry.get_tool(tool_name)
+        if tool:
+            try:
+                # Use the tool registry's execute method with proper context
+                result = self.tool_registry.execute_tool(
+                    tool_name=tool_name,
+                    input_data=args,
+                    agent_id=self.agent_id,
+                    agent_type=self.agent_type,
+                    context={"workspace": self.workspace}
+                )
+
+                if result.success:
+                    if hasattr(result, 'data') and result.data:
+                        # Format the data nicely
+                        if isinstance(result.data, dict):
+                            return json.dumps(result.data, indent=2)
+                        return str(result.data)
+                    return "Success"
+                else:
+                    return f"Error: {result.error}"
+            except Exception as e:
+                return f"Error executing tool '{tool_name}': {str(e)}"
+
+        # Fall back to legacy core tools
         try:
             if tool_name == "list_dir":
                 # Use current_working_dir for relative paths

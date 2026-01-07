@@ -155,16 +155,16 @@ class Skill:
         """Get affinity score between this skill and an agent"""
         # Define which agents naturally use which skills
         affinities = {
-            '00': ['code-review', 'sequential-thinking', 'problem-solving', 'debugging'],
-            '01': ['planning', 'sequential-thinking', 'problem-solving'],
+            '00': ['code-review', 'sequential-thinking', 'problem-solving', 'debugging', 'planning-with-files'],
+            '01': ['planning', 'planning-with-files', 'sequential-thinking', 'problem-solving'],
             '02': ['backend-development', 'frontend-development', 'web-frameworks', 
-                   'databases', 'better-auth', 'payment-integration', 'debugging'],
-            '03': ['ui-ux-pro-max', 'frontend-design', 'ui-styling', 'threejs', 'ai-artist'],
-            '04': ['code-review', 'sequential-thinking', 'problem-solving'],
+                   'databases', 'better-auth', 'payment-integration', 'debugging', 'planning-with-files'],
+            '03': ['ui-ux-pro-max', 'frontend-design', 'ui-styling', 'threejs', 'ai-artist', 'ai-multimodal'],
+            '04': ['code-review', 'sequential-thinking', 'problem-solving', 'planning-with-files'],
             '05': ['common'],
             '06': ['devops', 'chrome-devtools'],
-            '07': ['debugging', 'problem-solving', 'sequential-thinking'],
-            '08': ['devops', 'planning'],
+            '07': ['debugging', 'problem-solving', 'sequential-thinking', 'planning-with-files'],
+            '08': ['devops', 'planning', 'planning-with-files'],
             '09': ['debugging', 'code-review']
         }
         
