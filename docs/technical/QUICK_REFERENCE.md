@@ -52,13 +52,29 @@ vibe --task "Add Google OAuth login" --skills better-auth
 cd C:\Projects\api-backend
 vibe --task "Add connection pooling and caching" --skills databases
 
-# Media Processing  
+# Media Processing
 cd C:\Projects\media-app
 vibe --task "Batch resize and optimize images" --skills media-processing
 
 # Web Frameworks
 cd C:\Projects\nextjs-site
 vibe --task "Add server actions with Zod validation" --skills web-frameworks
+```
+
+### With Autonomous Approval (NEW)
+
+```powershell
+# Auto-approve with default threshold (0.8)
+python vibecode_studio.py --prompt "Build a todo app" --auto
+
+# Custom confidence threshold (more lenient)
+python vibecode_studio.py --prompt "Add button component" --confidence-threshold 0.7
+
+# Conservative threshold (production)
+python vibecode_studio.py --prompt "Database migration" --confidence-threshold 0.9
+
+# Custom audit log location
+python vibecode_studio.py --prompt "Refactor auth" --audit-log C:\logs\auto.log
 ```
 
 ---

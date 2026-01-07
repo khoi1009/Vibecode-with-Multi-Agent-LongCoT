@@ -19,6 +19,7 @@ from .intent_parser import IntentParser, TaskType
 from .skill_loader import SkillLoader
 from .longcot_scanner import LongCoTScanner
 from .universal_generator import UniversalGenerator
+from .autonomy_config import AutonomyConfig
 from utils.ai_providers import GeminiProvider
 from core.diagnostician import Diagnostician, ErrorType
 from core.reasoning_engine import ReasoningEngine
@@ -50,47 +51,51 @@ class Orchestrator:
     5. GitHub Copilot acts as the agents based on loaded instructions
     """
     
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, autonomy_config: Optional[AutonomyConfig] = None):
         self.workspace = Path(workspace)
         self.vibecode_dir = workspace / ".vibecode"
         self.vibecode_dir.mkdir(exist_ok=True)
-        
+
+        # Initialize autonomy configuration
+        self.autonomy_config = autonomy_config or AutonomyConfig()
+        self.autonomy_audit_log = Path(self.autonomy_config.audit_log_path)
+
         # Load orchestrator instructions
         orchestrator_spec = Path(__file__).parent / "system_fast.md"
         self.orchestrator_instructions = self._load_orchestrator_spec(orchestrator_spec)
-        
+
         # Load agents from product folder
         product_agents_dir = Path(__file__).parent.parent / "agents"
         self.agents = load_all_agents(product_agents_dir)
-        
+
         # Load skills (the expensive third-party library)
         skills_dir = Path(__file__).parent.parent / "skills"
         self.skill_loader = SkillLoader(self.workspace / "skills")
         print(f"[OK] Loaded {len(self.skill_loader.skills)} skills for intelligent task execution")
-        
+
         # State files
         self.state_file = self.vibecode_dir / "state.json"
         self.session_file = self.vibecode_dir / "session_context.md"
-        
+
         # Load current state
         self.state = self.load_state()
-        
+
         # Initialize intent parser
         self.intent_parser = IntentParser()
-        
+
         # Check if this is an existing project
         self.is_existing_project = self._check_existing_project()
-        
+
         # Initialize Long CoT scanner for intelligent code analysis
         self.longcot_scanner = LongCoTScanner(self.workspace)
         self.longcot_analysis = None
         self.longcot_analysis = None
         self.universal_generator = UniversalGenerator(self.workspace, self.skill_loader)
-        
+
         # Initialize AI Provider (The Brain)
         self.ai_provider = GeminiProvider(self.workspace)
         self.diagnostician = Diagnostician(self.ai_provider)
-        
+
         # Run initial Long CoT analysis if existing project
         if self.is_existing_project:
             self._run_initial_longcot_scan()
@@ -138,7 +143,18 @@ class Orchestrator:
             print(f"⚠️  Long CoT analysis failed: {e}")
             print("   Continuing with traditional analysis...")
             self.longcot_analysis = None
-    
+
+    def _log_autonomy_decision(self, task_type: TaskType, confidence: float,
+                              approved: bool, reason: str) -> None:
+        """Log autonomy decision to audit trail"""
+        self.autonomy_config.log_decision(
+            self.autonomy_audit_log,
+            task_type.value,
+            confidence,
+            approved,
+            reason
+        )
+
     def _load_orchestrator_spec(self, spec_file: Path) -> str:
         """Load the orchestrator specification (system_fast.md)"""
         if spec_file.exists():
@@ -211,22 +227,29 @@ class Orchestrator:
         
         print(f"🔄 Pipeline: {' → '.join([f'Agent {id}' for id in pipeline])}")
         
-        # Check if approval needed
+        # Check if approval needed (confidence-based auto-approval)
         if self.intent_parser.should_ask_for_approval(task_type):
-            print(f"\n⚠️  This task requires approval before execution.")
-            print(f"   Task: {params.get('description', user_input)}")
-            print(f"   Agents: {len(pipeline)}")
-            
-            if auto_approve:
-                print(f"   {Colors.YELLOW}⚡ Auto-approving task due to --auto flag{Colors.ENDC}")
-                approval = 'y'
+            # Get confidence from Long CoT analysis
+            confidence = self.longcot_analysis['statistics']['avg_confidence'] if self.longcot_analysis else 0.5
+            is_destructive = task_type in [TaskType.BUILD_FEATURE, TaskType.REFACTOR_CODE, TaskType.FIX_BUG]
+
+            # Determine if should auto-approve based on confidence
+            should_proceed, reason = self.autonomy_config.should_auto_approve(confidence, is_destructive)
+
+            # Log the decision
+            self._log_autonomy_decision(task_type, confidence, should_proceed, reason)
+
+            if should_proceed:
+                print(f"\n✅ Auto-approved: {reason}")
+                print(f"   Task: {params.get('description', user_input)}")
+                print(f"   Agents: {len(pipeline)}")
             else:
-                approval = input("\nProceed? (y/n): ").strip().lower()
-            
-            if approval != 'y':
+                print(f"\n❌ Auto-rejected: {reason}")
+                print(f"   Task: {params.get('description', user_input)}")
                 return {
                     "success": False,
-                    "message": "Task cancelled by user"
+                    "message": f"Task auto-rejected: {reason}",
+                    "confidence": confidence
                 }
         
         # Execute pipeline
@@ -263,22 +286,27 @@ class Orchestrator:
                 print(f"   Long CoT confidence: {longcot_confidence:.1%}")
                 print(f"   Recommendation: Manual review advised")
                 print(f"   Reason: Codebase understanding is below threshold")
-                
-                # Ask for confirmation on destructive operations
-                # Ask for confirmation on destructive operations
-                if task_type in [TaskType.BUILD_FEATURE, TaskType.REFACTOR_CODE]:
-                    if auto_approve:
-                         print(f"   {Colors.YELLOW}⚡ Auto-approving despite low confidence (Risk Accepted){Colors.ENDC}")
-                         approval = 'y'
-                    else:
-                        approval = input("\n   Proceed anyway? (y/n): ").strip().lower()
 
-                    if approval != 'y':
+                # Check for destructive operations
+                is_destructive = task_type in [TaskType.BUILD_FEATURE, TaskType.REFACTOR_CODE, TaskType.FIX_BUG]
+                if is_destructive:
+                    # Use autonomy config to determine if should proceed
+                    should_proceed, reason = self.autonomy_config.should_auto_approve(
+                        longcot_confidence,
+                        is_destructive
+                    )
+
+                    self._log_autonomy_decision(task_type, longcot_confidence, should_proceed, reason)
+
+                    if not should_proceed:
+                        print(f"\n❌ Auto-rejected: {reason}")
                         return {
                             "success": False,
-                            "message": "Task cancelled due to low confidence",
+                            "message": f"Task auto-rejected: {reason}",
                             "longcot_confidence": longcot_confidence
                         }
+                    else:
+                        print(f"   {Colors.YELLOW}⚡ Auto-approving: {reason}{Colors.ENDC}")
             elif longcot_confidence >= 0.8:
                 print(f"\n✅ HIGH CONFIDENCE MODE")
                 print(f"   Long CoT confidence: {longcot_confidence:.1%}")

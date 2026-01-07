@@ -36,7 +36,20 @@ python test_autonomous_dev.py
 .\quick_test.ps1
 ```
 
-### Method 3: Manual Testing
+### Method 3: Headless Mode with Autonomy Flags
+
+```powershell
+# Autonomous execution with confidence threshold
+python vibecode_studio.py --prompt "Build a todo app" --auto --confidence-threshold 0.8
+
+# With custom audit log location
+python vibecode_studio.py --prompt "Build a blog" --auto --audit-log C:\logs\autonomy.log
+
+# Manual approval mode (requires human confirmation)
+python vibecode_studio.py --prompt "Build a dashboard" --confidence-threshold 0.75
+```
+
+### Method 4: Manual Interactive Testing
 
 ```powershell
 # Interactive mode
@@ -450,6 +463,193 @@ Before considering a test successful, verify:
 4. Check disk space and permissions
 5. Report issue with logs attached
 
-**Test suite version:** 1.0  
-**Last updated:** January 5, 2026  
+**Test suite version:** 1.0
+**Last updated:** January 5, 2026
 **Compatible with:** Vibecode Studio v1.0.0
+
+---
+
+## 🤖 Phase 1: Autonomous Decision-Making (NEW)
+
+### Overview
+
+Vibecode now includes confidence-based autonomous approval for development tasks. The system evaluates task complexity, uses Long CoT analysis for decision confidence, and automatically approves/rejects without human intervention when conditions are met.
+
+### CLI Flags
+
+Three flags control autonomous behavior:
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--auto` | disabled | Override ALL checks, proceed unconditionally |
+| `--confidence-threshold` | 0.8 | Minimum confidence (0.0-1.0) for auto-approval |
+| `--audit-log` | `.vibecode/autonomy_audit.log` | Path to decision audit trail |
+
+### Decision Logic
+
+```
+IF confidence >= threshold (0.8)
+   THEN auto-approve
+
+ELSE IF confidence < 0.5 AND is_destructive_operation
+   THEN auto-reject (safety fail-close)
+
+ELSE IF --auto flag enabled
+   THEN auto-approve (override)
+
+ELSE
+   THEN require manual approval
+```
+
+### Example Usage
+
+**Scenario 1: High Confidence (Auto-Approve)**
+```powershell
+# LongCoT confidence: 0.95 (>= 0.8 threshold)
+python vibecode_studio.py --prompt "Add a button component" --confidence-threshold 0.8
+# Result: APPROVED automatically, audit logged
+```
+
+**Scenario 2: Low Confidence + Destructive (Auto-Reject)**
+```powershell
+# LongCoT confidence: 0.42, task: code refactoring (destructive)
+python vibecode_studio.py --prompt "Refactor database schema"
+# Result: REJECTED automatically, manual approval required
+```
+
+**Scenario 3: Override with --auto Flag**
+```powershell
+# LongCoT confidence: 0.55 (below threshold), --auto present
+python vibecode_studio.py --prompt "Build dashboard" --auto --confidence-threshold 0.8
+# Result: APPROVED despite low confidence (user override)
+```
+
+### Audit Log Format
+
+Each decision logged to `.vibecode/autonomy_audit.log` (JSON lines):
+
+```json
+{
+  "timestamp": "2026-01-07T12:14:30.123456",
+  "task_type": "BUILD_FEATURE",
+  "confidence": 0.87,
+  "approved": true,
+  "reason": "High confidence (87%)"
+}
+
+{
+  "timestamp": "2026-01-07T12:15:45.654321",
+  "task_type": "REFACTOR",
+  "confidence": 0.42,
+  "approved": false,
+  "reason": "Low confidence (42%) + destructive op"
+}
+
+{
+  "timestamp": "2026-01-07T12:16:20.111111",
+  "task_type": "BUGFIX",
+  "confidence": 0.65,
+  "approved": true,
+  "reason": "Auto-approve flag enabled"
+}
+```
+
+### Analyzing Audit Logs
+
+```powershell
+# View recent decisions
+Get-Content .vibecode/autonomy_audit.log -Tail 10
+
+# Filter approved only
+Get-Content .vibecode/autonomy_audit.log |
+  ConvertFrom-Json |
+  Where-Object { $_.approved -eq $true } |
+  Select-Object timestamp, task_type, confidence
+
+# Generate summary
+$log = Get-Content .vibecode/autonomy_audit.log | ConvertFrom-Json
+$approved_count = ($log | Where-Object { $_.approved }).Count
+$total = $log.Count
+Write-Host "Approval Rate: $($approved_count / $total * 100)%"
+```
+
+### Confidence Scoring
+
+Long CoT evaluates confidence based on:
+
+1. **Task Complexity** - Simple tasks score higher
+2. **Codebase Clarity** - Well-structured code → higher confidence
+3. **Plan Completeness** - Detailed plans → higher confidence
+4. **Error Recovery** - Fewer errors in reasoning → higher confidence
+5. **Precedent** - Similar tasks already completed → higher confidence
+
+### Recommended Thresholds
+
+| Use Case | Threshold | Notes |
+|----------|-----------|-------|
+| Development/Testing | 0.75-0.8 | Accept moderate risk |
+| Production CI/CD | 0.85-0.9 | Conservative, minimal risk |
+| Critical Infrastructure | 0.95+ | Extreme caution |
+| Local Experimentation | 0.5-0.6 | Fast iteration |
+
+### Disabling Autonomy
+
+To require manual approval for all tasks:
+
+```powershell
+# Don't use --auto, set threshold to 1.0
+python vibecode_studio.py --prompt "Build feature" --confidence-threshold 1.0
+# Result: ALL tasks require manual confirmation
+```
+
+### Best Practices
+
+1. **Start Conservative** - Use `--confidence-threshold 0.85` initially
+2. **Monitor Audit Logs** - Review decisions regularly
+3. **Adjust Threshold** - Lower for trusted tasks, raise for risky ones
+4. **Use --auto Sparingly** - Override only when you're certain
+5. **Archive Logs** - Keep audit trail for compliance
+
+### Troubleshooting
+
+**Q: Tasks always rejected despite high confidence?**
+- Check if task is marked as "destructive" (code changes)
+- Verify confidence score in audit log
+- Try `--confidence-threshold 0.7` to lower bar
+
+**Q: Too many approvals, want more control?**
+- Remove `--auto` flag
+- Increase `--confidence-threshold` to 0.9+
+- Check audit logs for pattern
+
+**Q: Audit log not being created?**
+- Verify `.vibecode/` directory exists
+- Check file permissions on directory
+- Specify explicit `--audit-log` path
+
+---
+
+## 🔒 Safety Features
+
+### Fail-Close Design
+
+Low confidence + destructive operations ALWAYS rejected by default:
+- No approval threshold override
+- Prevents accidental data loss
+- Requires manual review
+
+### Audit Trail
+
+Every decision logged immutably:
+- Timestamp per decision
+- Reason recorded
+- Confidence score documented
+- Enables compliance/review
+
+### Reversibility
+
+All autonomy flags affect ONLY approval logic:
+- Generated code is identical
+- Plans are the same
+- Undo/rollback unchanged
+- Safe to experiment with thresholds
