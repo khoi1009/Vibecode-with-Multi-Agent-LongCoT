@@ -6,6 +6,7 @@ Agent 00: Security audit & pattern analysis
 from pathlib import Path
 from typing import Dict, List
 from core.agent_executor import AgentExecutor, AgentResult, Artifact
+from core.messages import AgentMessage, MessageType
 
 
 class ForensicExecutor(AgentExecutor):
@@ -16,15 +17,41 @@ class ForensicExecutor(AgentExecutor):
         insights = []
         artifacts = []
 
+        # Get message queue from context if available
+        message_queue = context.get("message_queue")
+        artifact_registry = context.get("artifact_registry")
+
         # Security scan (no AI required)
         security_issues = self._scan_security()
         pattern_analysis = self._analyze_patterns()
 
         # Generate report
         report_content = self._generate_report(security_issues, pattern_analysis)
+        report_path = ".vibecode/security_audit.md"
+
+        # Register artifact
+        if artifact_registry:
+            artifact_registry.register(report_path, "00", "report")
+
+        # Push message to queue
+        if message_queue:
+            message = AgentMessage(
+                id=f"forensic_{len(security_issues)}_issues",
+                from_agent="00",
+                to_agent=None,  # Broadcast to orchestrator
+                message_type=MessageType.INSIGHT,
+                payload={
+                    "summary": f"Found {len(security_issues)} security issues",
+                    "pattern_analysis": pattern_analysis,
+                    "recommendations": self._get_recommendations(security_issues)
+                },
+                artifacts=[report_path]
+            )
+            message_queue.push(message)
+
         artifacts.append(Artifact(
             type="report",
-            path=".vibecode/security_audit.md",
+            path=report_path,
             content=report_content
         ))
 
@@ -139,3 +166,16 @@ class ForensicExecutor(AgentExecutor):
             report.append("- Regular security audits recommended")
 
         return "\n".join(report)
+
+    def _get_recommendations(self, security_issues: List[Dict]) -> List[str]:
+        """Get recommendations based on security issues"""
+        if not security_issues:
+            return [
+                "Continue following security best practices",
+                "Regular security audits recommended"
+            ]
+        return [
+            "Remove hardcoded secrets from source code",
+            "Use environment variables or secret management",
+            "Review and rotate any exposed credentials"
+        ]

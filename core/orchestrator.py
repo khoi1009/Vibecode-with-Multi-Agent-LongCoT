@@ -21,6 +21,9 @@ from .longcot_scanner import LongCoTScanner
 from .universal_generator import UniversalGenerator
 from .autonomy_config import AutonomyConfig
 from .agent_registry import get_executor, is_implemented
+from .message_queue import AgentMessageQueue
+from .artifact_registry import ArtifactRegistry
+from .messages import AgentMessage, MessageType
 from utils.ai_providers import GeminiProvider
 from core.diagnostician import Diagnostician, ErrorType
 from core.reasoning_engine import ReasoningEngine
@@ -60,6 +63,10 @@ class Orchestrator:
         # Initialize autonomy configuration
         self.autonomy_config = autonomy_config or AutonomyConfig()
         self.autonomy_audit_log = Path(self.autonomy_config.audit_log_path)
+
+        # Initialize message queue and artifact registry
+        self.message_queue = AgentMessageQueue()
+        self.artifact_registry = ArtifactRegistry(workspace)
 
         # Load orchestrator instructions
         orchestrator_spec = Path(__file__).parent / "system_fast.md"
@@ -258,16 +265,22 @@ class Orchestrator:
     
     def execute_pipeline(self, task_type: TaskType, agent_ids: List[str], params: Dict, auto_approve: bool = False) -> Dict:
         """
-        Execute agent pipeline with intelligent skill loading
-        
+        Execute agent pipeline with intelligent skill loading and message queue
+
         Args:
             task_type: Type of task
             agent_ids: List of agent IDs to execute
             params: Task parameters (should contain 'description' key)
-        
+            auto_approve: Whether to auto-approve destructive operations
+
         Returns:
             Result dictionary with execution details
         """
+        # Start new pipeline run
+        from datetime import datetime
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        self.artifact_registry.start_run(run_id)
+        self.message_queue.clear()
         
         self.state["current_phase"] = f"PIPELINE:{task_type.value}"
         self.state["active_task"] = params.get('description', str(task_type))
@@ -392,7 +405,9 @@ class Orchestrator:
                         "task_type": task_type,
                         "params": params,
                         "previous_results": results["agents_executed"],
-                        "longcot_analysis": self.longcot_analysis
+                        "longcot_analysis": self.longcot_analysis,
+                        "message_queue": self.message_queue,
+                        "artifact_registry": self.artifact_registry
                     }
 
                     # Execute with real agent logic
@@ -441,7 +456,10 @@ class Orchestrator:
         print(f"   • Successful: {len(results['agents_executed'])}")
         print(f"   • Errors: {len(results['errors'])}")
         print(f"{'='*60}\n")
-        
+
+        # Save artifact registry manifest
+        self.artifact_registry.save_manifest()
+
         return results
 
     def _process_ai_response(self, response: str, cwd: Path):
