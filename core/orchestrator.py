@@ -20,6 +20,7 @@ from .skill_loader import SkillLoader
 from .longcot_scanner import LongCoTScanner
 from .universal_generator import UniversalGenerator
 from .autonomy_config import AutonomyConfig
+from .agent_registry import get_executor, is_implemented
 from utils.ai_providers import GeminiProvider
 from core.diagnostician import Diagnostician, ErrorType
 from core.reasoning_engine import ReasoningEngine
@@ -378,39 +379,51 @@ class Orchestrator:
             print(f"   • Skills context: {sum(len(skill.content) for skill, _ in selected_skills)} chars")
             print(f"   • Total context: ~{len(context)} chars")
             
-            # In real execution, this context would be fed to GitHub Copilot
-            # For now, we simulate successful execution
-            agent_result = {
-                "agent_id": agent_id,
-                "agent_name": agent.name,
-                "skills_used": [skill.name for skill, _ in selected_skills],
-                "context_size": len(context),
-                "status": "simulated"  # In production: "executed"
-            }
-            
-            results["agents_executed"].append(agent_result)
-            results["agents_executed"].append(agent_result)
-            
-            # --- REAL AI EXECUTION ---
-            if self.ai_provider.is_configured():
-                print(f"   {Colors.MAGENTA}[AI] Generating content with Gemini Pro...{Colors.ENDC}")
-                
-                # Add format instructions to context
-                ai_context = context + "\n\n# OUTPUT FORMAT INSTRUCTIONS\n" + \
-                           "You are an autonomous coding agent. You must produce actual artifacts.\n" + \
-                           "For every file you create or modify, use a strict code block format with the filename as a prefix:\n" + \
-                           "```python:src/main.py\nprint('hello')\n```\n" + \
-                           "For plans or reports, save them as markdown files (e.g., `plan.md`)."
-                
-                response = self.ai_provider.generate(ai_context)
-                self._process_ai_response(response, self.workspace)
-                
-                agent_result["status"] = "executed (AI)"
-                agent_result["output_preview"] = response[:200] + "..."
+            # Check if agent has real implementation
+            if is_implemented(agent_id):
+                print(f"   {Colors.BLUE}[INFO] Using real agent executor...{Colors.ENDC}")
+
+                # Get executor from registry
+                executor = get_executor(agent_id, self.workspace, self.ai_provider, self.skill_loader)
+
+                if executor:
+                    # Prepare context for executor
+                    executor_context = {
+                        "task_type": task_type,
+                        "params": params,
+                        "previous_results": results["agents_executed"],
+                        "longcot_analysis": self.longcot_analysis
+                    }
+
+                    # Execute with real agent logic
+                    agent_exec_result = executor.execute(
+                        query=query,
+                        context=executor_context
+                    )
+
+                    # Convert AgentResult to old format for compatibility
+                    agent_result = {
+                        "agent_id": agent_exec_result.agent_id,
+                        "agent_name": agent.name,
+                        "skills_used": [skill.name for skill, _ in selected_skills],
+                        "context_size": len(context),
+                        "status": agent_exec_result.status,
+                        "artifacts": [{"type": a.type, "path": a.path, "content": a.content[:200]} for a in agent_exec_result.artifacts],
+                        "insights": agent_exec_result.insights,
+                        "next_agent": agent_exec_result.next_recommended_agent,
+                        "confidence": agent_exec_result.confidence,
+                        "execution_type": "real"
+                    }
+
+                    results["agents_executed"].append(agent_result)
+                else:
+                    # Executor failed, use fallback
+                    agent_result = self._execute_agent_fallback(agent_id, agent, query, selected_skills, context)
+                    results["agents_executed"].append(agent_result)
             else:
-                # Fallback to simulation if no key
-                print(f"   {Colors.YELLOW}[WARN] AI not configured. Running simulation...{Colors.ENDC}")
-                self._enact_agent_role(agent_id, query, selected_skills, task_type)
+                # No implementation, use fallback to simulation
+                agent_result = self._execute_agent_fallback(agent_id, agent, query, selected_skills, context)
+                results["agents_executed"].append(agent_result)
             
             print(f"✅ Agent {agent_id} execution complete")
         
@@ -621,6 +634,27 @@ Create a well-architected solution with proper file structure, type definitions,
                 self._run_with_healing(target_dir)
             else:
                 print(f"   [FAIL] Target directory not found.")
+
+    def _execute_agent_fallback(self, agent_id: str, agent: Agent, query: str,
+                               skills: List, context: str) -> Dict:
+        """
+        Fallback execution for agents without real implementations.
+        Simulates agent execution using existing logic.
+        """
+        print(f"   {Colors.YELLOW}[WARN] Agent {agent_id} has no executor. Using fallback...{Colors.ENDC}")
+
+        # Use existing _enact_agent_role for fallback
+        self._enact_agent_role(agent_id, query, skills, None)
+
+        # Return result in expected format
+        return {
+            "agent_id": agent_id,
+            "agent_name": agent.name,
+            "skills_used": [skill.name for skill in skills],
+            "context_size": len(context),
+            "status": "simulated",
+            "execution_type": "fallback"
+        }
 
     def _run_with_healing(self, target_dir: Path):
         """
