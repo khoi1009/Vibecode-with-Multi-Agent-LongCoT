@@ -14,6 +14,7 @@ from datetime import datetime
 
 # Import dependencies
 from .tool_registry import ToolRegistry
+from .memory_manager import BoundedHistory
 
 # Import AgentType from tools (use absolute path with sys.path modification)
 from pathlib import Path
@@ -39,7 +40,7 @@ class ReasoningEngine:
         self.workspace = workspace
         self.ai_provider = ai_provider
         self.max_steps = 30  # Increased from 15 to 30 for complex projects
-        self.history = []
+        self.history = BoundedHistory(max_entries=50, max_chars=30000)
         self.allowed_tools = allowed_tools
         self.agent_id = agent_id
         self.current_working_dir = workspace

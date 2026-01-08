@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  vibecode:
+    build: .
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - VIBECODE_AUTO=1
+    volumes:
+      - ./workspace:/app/workspace
+    command: ["--prompt", "/scan", "--auto"]

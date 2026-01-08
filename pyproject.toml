@@ -36,6 +36,16 @@ Issues = "https://github.com/khoi1009/Vibecode-with-Multi-Agent/issues"
 vibecode = "vibecode_studio:main"
 vibe = "vibecode_studio:main"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-timeout>=2.2.0",
+]
+
 [tool.setuptools]
 packages = ["core", "agents"]
 include-package-data = true
@@ -43,3 +53,15 @@ include-package-data = true
 [tool.setuptools.package-data]
 "*" = ["*.md", "*.txt", "*.json", "*.yaml", "*.yml"]
 "skills" = ["**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+markers = [
+    "slow: end-to-end tests (deselect with '-m not slow')",
+    "benchmark: performance tests",
+    "integration: integration tests",
+    "unit: unit tests",
+]
+addopts = "-v --tb=short"

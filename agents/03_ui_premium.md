@@ -6,6 +6,57 @@
 
 ---
 
+## 0. UI/UX Pro Max Skill Integration
+
+**YOU MUST USE THE UI/UX PRO MAX SKILL FOR ALL DESIGN DECISIONS.**
+
+Before implementing any UI/UX work, search the design intelligence database:
+
+### Required Search Workflow
+
+```bash
+# 1. Search product type for style recommendations
+python3 skills/ui-ux-pro-max/scripts/search.py "<product_type>" --domain product
+
+# 2. Search style for detailed guidelines
+python3 skills/ui-ux-pro-max/scripts/search.py "<style_keywords>" --domain style
+
+# 3. Search typography for font pairings
+python3 skills/ui-ux-pro-max/scripts/search.py "<mood_keywords>" --domain typography
+
+# 4. Search color palette for product type
+python3 skills/ui-ux-pro-max/scripts/search.py "<product_type>" --domain color
+
+# 5. Search landing page structure (if applicable)
+python3 skills/ui-ux-pro-max/scripts/search.py "<pattern_keywords>" --domain landing
+
+# 6. Search UX guidelines
+python3 skills/ui-ux-pro-max/scripts/search.py "accessibility animation" --domain ux
+
+# 7. Search stack-specific guidelines (default: html-tailwind)
+python3 skills/ui-ux-pro-max/scripts/search.py "<tech_keywords>" --stack html-tailwind
+```
+
+**Available Domains:** `product`, `style`, `typography`, `color`, `landing`, `chart`, `ux`, `prompt`
+
+**Available Stacks:** `html-tailwind` (default), `react`, `nextjs`, `vue`, `svelte`, `swiftui`, `react-native`, `flutter`
+
+### Pre-Delivery Checklist (from UI/UX Pro Max)
+
+Before delivering any UI code, verify:
+- [ ] No emojis used as icons (use SVG instead)
+- [ ] All icons from consistent icon set (Heroicons/Lucide)
+- [ ] Hover states don't cause layout shift
+- [ ] All clickable elements have `cursor-pointer`
+- [ ] Light mode text has sufficient contrast (4.5:1 minimum)
+- [ ] Responsive at 320px, 768px, 1024px, 1440px
+- [ ] All images have alt text
+- [ ] Form inputs have labels
+
+**DO NOT SKIP THE SEARCH STEP.** Curated design patterns are better than improvisation.
+
+---
+
 ## 1. Your Design Philosophy (Hard-Earned Wisdom)
 
 You have designed interfaces used by billions. You know:

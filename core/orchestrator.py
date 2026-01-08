@@ -27,6 +27,8 @@ from .messages import AgentMessage, MessageType
 from utils.ai_providers import GeminiProvider
 from core.diagnostician import Diagnostician, ErrorType
 from core.reasoning_engine import ReasoningEngine
+from .cache import get_prompt_cache, get_result_cache, get_file_hash_cache
+from .metrics import get_metrics_collector
 
 
 class Colors:
@@ -103,6 +105,12 @@ class Orchestrator:
         # Initialize AI Provider (The Brain)
         self.ai_provider = GeminiProvider(self.workspace)
         self.diagnostician = Diagnostician(self.ai_provider)
+
+        # Initialize caching and metrics
+        self.prompt_cache = get_prompt_cache()
+        self.result_cache = get_result_cache()
+        self.file_hash_cache = get_file_hash_cache()
+        self.metrics = get_metrics_collector(self.workspace)
 
         # Run initial Long CoT analysis if existing project
         if self.is_existing_project:
@@ -841,25 +849,41 @@ Create a well-architected solution with proper file structure, type definitions,
         else:
             print(f"   [Patch Failed] Could not extract code from Medic response.")
             return False
-    def _build_agent_context(self, agent: Agent, query: str, params: Dict, 
+    def _build_agent_context(self, agent: Agent, query: str, params: Dict,
                             selected_skills: List, previous_results: List,
                             longcot_analysis: Optional[Dict] = None) -> str:
         """
         Build full context for the agent (Phase 2: CONTEXT from system_fast.md)
+        Uses prompt caching to avoid rebuilding static parts.
         """
-        
+        # Check cache first for static parts
+        skill_ids = tuple(s.name for s in selected_skills) if selected_skills else ()
+        cache_key = self.prompt_cache.get_key(agent.id, skill_ids)
+
+        cached_static = self.prompt_cache.get(cache_key)
+        if cached_static:
+            # Cache hit - only append dynamic parts
+            task_section = f"\n# CURRENT TASK\nQuery: {query}\nParameters: {params}\n"
+            prev_results = ""
+            if previous_results:
+                prev_results = "\n# PREVIOUS AGENT RESULTS"
+                for result in previous_results:
+                    prev_results += f"\n- {result['agent_name']}: {result['status']}"
+                prev_results += "\n"
+            return cached_static + task_section + prev_results
+
         context_parts = []
-        
+
         # 1. System orchestration
         context_parts.append("# SYSTEM ORCHESTRATION")
         context_parts.append(self.orchestrator_instructions)
         context_parts.append("\n" + "="*60 + "\n")
-        
+
         # 2. Agent instructions
         context_parts.append(f"# AGENT: {agent.name}")
         context_parts.append(agent.instructions)
         context_parts.append("\n" + "="*60 + "\n")
-        
+
         # 3. Selected skills
         if selected_skills:
             context_parts.append("# SELECTED SKILLS")
@@ -867,61 +891,25 @@ Create a well-architected solution with proper file structure, type definitions,
                 context_parts.append(f"\n## Skill: {skill.name}")
                 context_parts.append(skill.content)
                 context_parts.append("\n" + "-"*40 + "\n")
-        
-        # 4. Long CoT codebase understanding
-        if longcot_analysis:
-            context_parts.append("# CODEBASE UNDERSTANDING (Long Chain-of-Thought)")
-            
-            arch = longcot_analysis['architecture']
-            context_parts.append(f"\n## Architecture Analysis")
-            context_parts.append(f"Type: {arch['type']}")
-            context_parts.append(f"Confidence: {arch['confidence']:.1%}")
-            context_parts.append(f"Description: {arch['description']}")
-            
-            # Critical paths
-            critical = longcot_analysis['critical_paths']
-            if critical.get('entry_points'):
-                context_parts.append(f"\n## Entry Points")
-                for ep in critical['entry_points'][:3]:  # Top 3
-                    context_parts.append(f"- {ep['file']} ({ep['lines']} lines)")
-            
-            # Core modules
-            if critical.get('core_modules'):
-                context_parts.append(f"\n## Core Modules")
-                for cm in critical['core_modules'][:5]:  # Top 5
-                    context_parts.append(f"- {cm['name']}: {cm['dependency_count']} deps ({cm['complexity']} complexity)")
-            
-            # Key insights
-            validated = longcot_analysis['validated_insights']
-            if validated.get('validated_insights'):
-                context_parts.append(f"\n## Validated Insights")
-                for insight in validated['validated_insights'][:3]:  # Top 3
-                    context_parts.append(f"- {insight}")
-            
-            # Warnings
-            if validated.get('warnings'):
-                context_parts.append(f"\n## Warnings")
-                for warning in validated['warnings'][:2]:  # Top 2
-                    context_parts.append(f"- {warning}")
-            
-            context_parts.append("\n" + "="*60 + "\n")
-        
-        # 5. Task details
-        context_parts.append("# CURRENT TASK")
-        context_parts.append(f"Query: {query}")
-        context_parts.append(f"Parameters: {params}")
-        context_parts.append("\n" + "="*60 + "\n")
-        
-        # 6. Previous results (for context continuity)
+
+        # Build static context (everything before task details)
+        static_context = "\n".join(context_parts)
+
+        # Cache the static part for future use
+        self.prompt_cache.set(cache_key, static_context)
+
+        # Now add dynamic parts
+        task_section = f"\n# CURRENT TASK\nQuery: {query}\nParameters: {params}\n"
+        prev_results = ""
         if previous_results:
-            context_parts.append("# PREVIOUS AGENT RESULTS")
+            prev_results = "\n# PREVIOUS AGENT RESULTS"
             for result in previous_results:
-                context_parts.append(f"- {result['agent_name']}: {result['status']}")
+                prev_results += f"\n- {result['agent_name']}: {result['status']}"
                 if result.get('skills_used'):
-                    context_parts.append(f"  Skills: {', '.join(result['skills_used'])}")
-            context_parts.append("\n" + "="*60 + "\n")
-        
-        return "\n".join(context_parts)
+                    prev_results += f"\n  Skills: {', '.join(result['skills_used'])}"
+            prev_results += "\n"
+
+        return static_context + task_section + prev_results
     
     def _log_agent_execution(self, agent_id: str, query: str, skills: List):
         """Log agent execution to session file"""

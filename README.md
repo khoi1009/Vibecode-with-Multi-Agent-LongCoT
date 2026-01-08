@@ -237,6 +237,43 @@ vibecode/
 
 ---
 
+## 🤖 NEW: Autonomous Mode
+
+Vibecode Studio now supports **fully autonomous operation** for CI/CD pipelines and automated workflows.
+
+### Quick Start (Autonomous)
+
+```bash
+# Run with prompt directly (no menu)
+python vibecode_studio.py --prompt "build auth feature" --auto
+
+# With confidence threshold
+python vibecode_studio.py --prompt "/build login" --auto --confidence-threshold 0.7
+
+# Headless CI/CD mode
+VIBECODE_AUTO=1 python vibecode_studio.py --prompt "/test"
+```
+
+### Autonomy Levels
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| Interactive | (default) | Menu-driven, prompts for approval |
+| Semi-Auto | `--prompt` | Direct execution, prompts for destructive ops |
+| Fully Auto | `--prompt --auto` | No prompts, confidence-gated |
+
+### Confidence Thresholds
+
+- `>= 0.8`: Auto-approved (high confidence)
+- `0.5 - 0.8`: Requires `--auto` flag
+- `< 0.5`: Auto-rejected for destructive operations
+
+All decisions logged to `.vibecode/autonomy_audit.log`.
+
+**[→ Learn More: Autonomous Mode Guide](docs/AUTONOMOUS_MODE.md)**
+
+---
+
 ## 💡 Use Cases
 
 ### 1. Onboard to Legacy Projects (5 minutes)

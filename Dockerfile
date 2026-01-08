@@ -1,0 +1,19 @@
+# Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Create non-root user for security
+RUN useradd -m vibecode && chown -R vibecode:vibecode /app
+USER vibecode
+
+ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["python", "vibecode_studio.py"]

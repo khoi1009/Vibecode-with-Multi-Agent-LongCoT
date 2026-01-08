@@ -1,52 +1,94 @@
-﻿# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+bin/
 
-# Virtual Env
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# semantic-release
+.nyc_output
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# flutter
+.dart_tool
+build
+GoogleService-Info.plist
+
+repomix-output.xml
+.serena/cache
+plans/**/*
+!plans/templates/*
+screenshots/*
+docs/screenshots/*
+docs/research/*
+logs.txt
+test-ck
+__pycache__
+
+# CK meta commands
+prompt.md
+ck.md
+
+# Gemini CLI settings (symlink to .claude/.mcp.json)
+.gemini/settings.json
+.claude/settings.bak.json
+
+# Mission/frontend node_modules
+__mission/frontend/node_modules
+__mission/backend/node_modules
+
+# Vibecode runtime data
+.vibecode/longcot/*
+.vibecode/artifacts/*
+.vibecode/autonomy_audit.log
+!.vibecode/longcot/.gitkeep
+!.vibecode/artifacts/.gitkeep
+
+# Claude Code settings
+.claude/
+
+# Python virtual environment
 venv/
-env/
-ENV/
-
-# Vibecode Generated Artifacts (User Projects)
-modern_logistics/
-crypto_tracker/
-nebula_board/
-secure_fintech/
-secure_ecommerce/
-secure_enterprise/
-social_agent/
-complex_secure/
-investor_demo/
-ab-test-results/
-high_confidence/
-refactor_*/
-optimize_*/
-
-# Logs
-*.log
-qa_report.log
-performance_audit.log
-
-# IDE
-.vscode/
-.idea/
-*.swp
+.venv/

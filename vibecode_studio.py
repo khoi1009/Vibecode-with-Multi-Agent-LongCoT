@@ -20,6 +20,7 @@ if sys.platform == 'win32':
         sys.stderr.reconfigure(encoding='utf-8')
 
 from core.orchestrator import Orchestrator
+from core.autonomy_config import AutonomyConfig
 from utils.ai_providers import GeminiProvider
 
 # Version
@@ -464,21 +465,31 @@ Execute the implementation checklist to create '{name}'.
         
         input(f"\n{Colors.DIM}Press Enter to continue...{Colors.ENDC}")
     
-    def run_headless(self, prompt: str, auto: bool = False):
+    def run_headless(self, prompt: str, auto: bool = False,
+                    confidence_threshold: float = 0.8, audit_log: str = '.vibecode/autonomy_audit.log'):
         """Run in headless mode for automation"""
         print_banner()
         print_header("🤖 AUTONOMOUS MODE ACTIVE")
         print_info(f"Executing prompt: '{prompt}'")
         if auto:
             print_warning("Auto-approval ENABLED")
-        
-        # Initialize Orchestrator properly
-        orchestrator = Orchestrator(self.workspace)
-        
+        print_info(f"Confidence threshold: {confidence_threshold:.0%}")
+
+        # Create autonomy configuration
+        autonomy_config = AutonomyConfig(
+            confidence_threshold=confidence_threshold,
+            auto_approve=auto,
+            audit_log_path=audit_log
+        )
+
+        # Initialize Orchestrator with autonomy config
+        orchestrator = Orchestrator(self.workspace, autonomy_config=autonomy_config)
+
         # Execute
         orchestrator.process_user_request(prompt, auto_approve=auto)
-        
+
         print_success("\nAutonomous execution complete.")
+        print_info(f"Audit log: {audit_log}")
     
     def run(self):
         """Main application loop"""
@@ -585,14 +596,18 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('--prompt', type=str, help='Directly execute a prompt without menu')
     parser.add_argument('--auto', action='store_true', help='Autonomous mode (skip confirmations)')
-    
+    parser.add_argument('--confidence-threshold', type=float, default=0.8,
+                        help='Minimum confidence for auto-approval (0.0-1.0, default: 0.8)')
+    parser.add_argument('--audit-log', type=str, default='.vibecode/autonomy_audit.log',
+                        help='Path for autonomy decision audit log')
+
     args = parser.parse_args()
-    
+
     # Run the application
     app = VibecodeSudio()
-    
+
     if args.prompt:
-        app.run_headless(args.prompt, args.auto)
+        app.run_headless(args.prompt, args.auto, args.confidence_threshold, args.audit_log)
     else:
         app.run()
 
