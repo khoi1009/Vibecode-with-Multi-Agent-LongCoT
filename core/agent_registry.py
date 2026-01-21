@@ -8,20 +8,26 @@ from core.agent_executor import AgentExecutor
 from core.agents.forensic_executor import ForensicExecutor
 from core.agents.architect_executor import ArchitectExecutor
 from core.agents.builder_executor import BuilderExecutor
+from core.agents.designer_executor import DesignerExecutor
+from core.agents.reviewer_executor import ReviewerExecutor
+from core.agents.integrator_executor import IntegratorExecutor
+from core.agents.operator_executor import OperatorExecutor
+from core.agents.medic_executor import MedicExecutor
+from core.agents.shipper_executor import ShipperExecutor
 from core.agents.qa_executor import QAExecutor
 
 
 AGENT_REGISTRY: Dict[str, Type[AgentExecutor]] = {
-    "00": ForensicExecutor,
-    "01": ArchitectExecutor,
-    "02": BuilderExecutor,
-    "03": None,  # Designer - TODO
-    "04": None,  # Reviewer - TODO
-    "05": None,  # Integrator - TODO
-    "06": None,  # Operator - TODO
-    "07": None,  # Medic - Use existing Diagnostician
-    "08": None,  # Shipper - TODO
-    "09": QAExecutor,
+    "00": ForensicExecutor,     # Auditor - Forensic codebase analysis
+    "01": ArchitectExecutor,    # Planner - Architecture and planning
+    "02": BuilderExecutor,      # Coder - Code implementation
+    "03": DesignerExecutor,     # Designer - UI/UX transformation
+    "04": ReviewerExecutor,     # Reviewer - Code review and security
+    "05": IntegratorExecutor,   # Integrator - Safe file integration
+    "06": OperatorExecutor,     # Runtime - Environment management
+    "07": MedicExecutor,        # Autofix - Bug fixing and recovery
+    "08": ShipperExecutor,      # Export - Release engineering
+    "09": QAExecutor,           # Testing - Automated QA
 }
 
 

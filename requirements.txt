@@ -3,5 +3,5 @@
 
 # Core dependencies
 colorama>=0.4.6
-google-generativeai>=0.3.2
+anthropic>=0.18.0
 python-dotenv>=1.0.0

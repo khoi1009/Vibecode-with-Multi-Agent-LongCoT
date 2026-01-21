@@ -39,8 +39,8 @@ class ReasoningEngine:
                  allowed_tools: Optional[List[str]] = None):
         self.workspace = workspace
         self.ai_provider = ai_provider
-        self.max_steps = 30  # Increased from 15 to 30 for complex projects
-        self.history = BoundedHistory(max_entries=50, max_chars=30000)
+        self.max_steps = 15  # Reduced from 30 for better performance
+        self.history = BoundedHistory(max_entries=30, max_chars=20000)  # Reduced for context efficiency
         self.allowed_tools = allowed_tools
         self.agent_id = agent_id
         self.current_working_dir = workspace
@@ -99,10 +99,25 @@ class ReasoningEngine:
                 print(f"{Colors.YELLOW}🤔 No tool call detected. Retrying with feedback...{Colors.ENDC}")
                 print(f"{Colors.RED}[DEBUG] Raw AI Response:\n{response}\n[DEBUG] End Response{Colors.ENDC}")
                 self.history.append({"role": "assistant", "content": response})
-                # [Antigravity Fix] Force the model to zero in on the format
+                # [Antigravity Fix] Force the model to zero in on the format with specific examples
                 self.history.append({
                     "role": "user", 
-                    "content": "SYSTEM ERROR: No valid 'Action:' or 'Args:' detected. You MUST use the strict format:\nThought: ...\nAction: ...\nArgs: { ... }"
+                    "content": """SYSTEM ERROR: No valid 'Action:' or 'Args:' detected.
+
+⚠️ STRICT FORMAT REQUIRED - Copy this EXACTLY:
+
+Thought: [one short sentence]
+Action: finish_task
+Args: {"summary": "[what you accomplished]"}
+
+RULES:
+1. Output ONLY these 3 lines
+2. NO text before Thought:
+3. NO text after Args: {...}
+4. JSON must be on ONE line
+5. Use double quotes in JSON
+
+Try again with the EXACT format above."""
                 })
                 continue
 
@@ -125,7 +140,8 @@ class ReasoningEngine:
             })
 
             # Check for completion signal in tool output or if we are just listing things
-            if tool_call['tool'] == "finish_task":
+            completion_tools = ["finish_task", "complete_task", "task_complete", "done", "complete", "end_task", "none", "no_action_required"]
+            if tool_call['tool'] in completion_tools:
                  return {"success": True, "history": self.history}
 
         return {"success": False, "reason": "Max steps reached"}
@@ -160,7 +176,12 @@ CORE TOOLS (Basic Operations):
 - read_file(path): Read the contents of a file.
 - write_file(path, content): Write content to a file (overwrites).
 - run_command(command): Run a shell command (e.g., 'npm install', 'mkdir').
-- finish_task(summary): Call this when the goal is achieved.
+- finish_task(summary): **CRITICAL** - You MUST call this tool when done! This is the ONLY way to complete the task.
+
+⚠️ IMPORTANT: When you have finished creating all files and the task is complete:
+- You MUST use Action: finish_task
+- Do NOT use: complete_task, task_complete, none, done, or any other name
+- The ONLY valid completion tool is: finish_task
 
 EXTENDED TOOLS (Enhanced Capabilities):
 {tool_docs}
@@ -168,9 +189,16 @@ EXTENDED TOOLS (Enhanced Capabilities):
 RESPONSE FORMAT:
 You must strictly follow this format for every turn. Do not output markdown code blocks for the Thought/Action.
 
+⚠️ CRITICAL RULE: Output EXACTLY ONE action per response!
+- Do NOT output multiple Action/Args pairs
+- Create ONE file, then wait for observation, then create the next
+- If you need to create 5 files, that takes 5 separate steps
+
 Thought: <your reasoning here>
 Action: <tool_name>
 Args: <json_arguments>
+
+STOP AFTER Args! Do not add more text or another Action.
 
 Example:
 Thought: I need to check if package.json exists.
@@ -181,17 +209,58 @@ Example:
 Thought: I need to create the main server file.
 Action: write_file
 Args: {{"path": "server.js", "content": "console.log('hello');"}}
+
+⚠️ COMPLETION EXAMPLE (IMPORTANT - use this EXACT format when done):
+Thought: Task complete
+Action: finish_task
+Args: {{"summary": "Created server.js with Express API"}}
+
+NOTE: After Args line, STOP. Do not write explanations or reasoning after the JSON.
 """
 
     def _build_step_prompt(self, goal: str, context: str) -> str:
+        # Context window limit - reduced for better performance
+        # MiniMax M2.1 has ~196K tokens, but we need headroom for skills + response
+        MAX_PROMPT_CHARS = 100000  # Reduced from 200K for faster processing
+        
         current_context = f"""
-GOAL: {goal}
-CONTEXT: {context}
 GOAL: {goal}
 CONTEXT: {context}
 WORKING_DIR: {self.current_working_dir}
 SYSTEM_OS: {platform.system()}
 """
+        
+        # [Antigravity Fix] Move Format Reminder to the END to prevent context loss
+        format_reminder = """
+═══════════════════════════════════════════════════════
+⚠️ CRITICAL: OUTPUT FORMAT (follow EXACTLY)
+═══════════════════════════════════════════════════════
+Thought: [brief reasoning - ONE sentence]
+Action: [tool_name]
+Args: {"key": "value"}
+
+RULES:
+• Output ONLY 3 lines (Thought, Action, Args)
+• Args JSON must be on ONE line
+• STOP immediately after Args - NO MORE TEXT
+
+IF TASK IS DONE, use:
+Thought: Task complete
+Action: finish_task
+Args: {"summary": "what you did"}
+═══════════════════════════════════════════════════════
+"""
+        
+        system_prompt = self._build_system_prompt()
+        
+        # Calculate fixed overhead (system + context + format reminder + buffer)
+        fixed_overhead = len(system_prompt) + len(current_context) + len(format_reminder) + 5000  # Increased buffer
+        
+        # CRITICAL FIX: Ensure available space is never negative
+        available_for_history = max(5000, MAX_PROMPT_CHARS - fixed_overhead)  # Minimum 5K chars for history
+        available_for_history = MAX_PROMPT_CHARS - fixed_overhead
+        
+        # Build history, keeping most recent entries if we exceed limit
         history_text = ""
         for item in self.history:
             if item['role'] == 'user':
@@ -199,14 +268,43 @@ SYSTEM_OS: {platform.system()}
             else:
                 history_text += f"{item['content']}\n"
         
-        # [Antigravity Fix] Move Format Reminder to the END to prevent context loss
-        format_reminder = """
-IMPORTANT: You must output the response in this strict format:
-Thought: <reasoning>
-Action: <tool_name>
-Args: <json_args>
-"""
-        return self._build_system_prompt() + "\n" + current_context + "\nHISTORY:\n" + history_text + "\n" + format_reminder + "\nNEXT STEP:"
+        # Compact history if it exceeds available space
+        if len(history_text) > available_for_history:
+            # Keep first entry (initial context) and most recent entries
+            compacted_history = []
+            total_chars = 0
+            
+            # Always keep first 2 entries for context
+            first_entries = self.history[:2] if len(self.history) >= 2 else self.history[:]
+            first_text = ""
+            for item in first_entries:
+                if item['role'] == 'user':
+                    first_text += f"OBSERVATION: {item['content']}\n"
+                else:
+                    first_text += f"{item['content']}\n"
+            
+            # Calculate remaining space for recent history
+            remaining_space = available_for_history - len(first_text) - 100  # 100 char buffer for separator
+            
+            # Build recent history from end, truncating if needed
+            recent_text = ""
+            for item in reversed(self.history[2:]):
+                entry = ""
+                if item['role'] == 'user':
+                    entry = f"OBSERVATION: {item['content']}\n"
+                else:
+                    entry = f"{item['content']}\n"
+                
+                if len(recent_text) + len(entry) < remaining_space:
+                    recent_text = entry + recent_text
+                else:
+                    break
+            
+            # Combine with compaction marker
+            history_text = first_text + "\n... [Earlier steps compacted to fit context window] ...\n\n" + recent_text
+            print(f"{Colors.YELLOW}⚠️  Context compacted: {len(self.history)} entries → fit in {available_for_history} chars{Colors.ENDC}")
+        
+        return system_prompt + "\n" + current_context + "\nHISTORY:\n" + history_text + "\n" + format_reminder + "\nNEXT STEP:"
 
     def _parse_response(self, response: str) -> tuple[Optional[str], Optional[Dict]]:
         thought = None
@@ -221,21 +319,71 @@ Args: <json_args>
         # Extract Action and Args
         # More robust regex for Action (case insensitive, handle potential markdown bolding like **Action**)
         action_match = re.search(r"Action:\s*(\w+)", response, re.IGNORECASE)
-        # Robust regex for Args: find the first { and the last }
-        args_match = re.search(r"Args:\s*(\{.*\})", response, re.DOTALL | re.IGNORECASE)
+        
+        # Parse Args using balanced brace matching (stops at first complete JSON object)
+        args_match = re.search(r"Args:\s*", response, re.IGNORECASE)
         
         if action_match and args_match:
             try:
                 tool_name = action_match.group(1).strip()
-                args_str = args_match.group(1).strip()
-                # Fix common JSON errors in LLM output (e.g. trailing commmas)
-                import json
-                args = json.loads(args_str)
-                tool_call = {"tool": tool_name, "args": args}
+                
+                # Extract JSON by finding balanced braces (not greedy regex)
+                args_start = args_match.end()
+                json_str = self._extract_first_json_object(response[args_start:])
+                
+                if json_str:
+                    import json
+                    args = json.loads(json_str)
+                    tool_call = {"tool": tool_name, "args": args}
+                else:
+                    print(f"{Colors.RED}❌ Could not find valid JSON object after Args:{Colors.ENDC}")
             except Exception as e:
                 print(f"{Colors.RED}❌ Error parsing tool args: {e}{Colors.ENDC}")
         
         return thought, tool_call
+    
+    def _extract_first_json_object(self, text: str) -> Optional[str]:
+        """Extract the first complete JSON object using balanced brace matching.
+        
+        This prevents issues where the model outputs extra text after the JSON.
+        """
+        text = text.strip()
+        if not text.startswith('{'):
+            # Find the first {
+            brace_pos = text.find('{')
+            if brace_pos == -1:
+                return None
+            text = text[brace_pos:]
+        
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        
+        for i, char in enumerate(text):
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\':
+                escape_next = True
+                continue
+            
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            
+            if in_string:
+                continue
+            
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    # Found complete JSON object
+                    return text[:i+1]
+        
+        return None  # No complete JSON object found
 
     def _execute_tool(self, tool_name: str, args: Dict) -> str:
         # Check against allowed tools if restriction is set
@@ -349,6 +497,11 @@ Args: <json_args>
                 return f"Exit Code: {result.returncode}\nOutput: {output}"
             
             elif tool_name == "finish_task":
+                return "Task Completed."
+            
+            # Add aliases for finish_task (models often try these variations)
+            elif tool_name in ["complete_task", "task_complete", "done", "complete", "end_task", "none", "no_action_required"]:
+                print(f"{Colors.YELLOW}⚠️  '{tool_name}' interpreted as 'finish_task'{Colors.ENDC}")
                 return "Task Completed."
             
             else:

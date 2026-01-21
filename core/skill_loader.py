@@ -290,26 +290,52 @@ class SkillLoader:
         if not selected_skills:
             return ""
         
+        # PERFORMANCE FIX: Limit total context size to prevent overflow
+        MAX_TOTAL_CONTEXT = 30000  # ~30K chars max for all skills combined
+        MAX_SKILL_CONTENT = 8000   # ~8K chars per skill
+        
         context = "\n# === AVAILABLE SKILLS ===\n\n"
         context += "The following specialized skills are loaded for this task:\n\n"
         
+        total_chars = len(context)
+        
         for i, skill in enumerate(selected_skills, 1):
+            if total_chars >= MAX_TOTAL_CONTEXT:
+                context += f"\n[Remaining skills truncated to fit context limit]\n"
+                break
+                
             ref_count = len(skill.reference_files)
             script_count = len(skill.script_files)
             
-            context += f"## Skill {i}: {skill.name}\n"
-            context += f"**Resources:** {ref_count} reference docs"
+            skill_header = f"## Skill {i}: {skill.name}\n"
+            skill_header += f"**Resources:** {ref_count} reference docs"
             if script_count > 0:
-                context += f" + {script_count} automation scripts"
-            context += "\n\n"
+                skill_header += f" + {script_count} automation scripts"
+            skill_header += "\n\n"
             
-            # Load COMPLETE content: SKILL.md + references + scripts
+            # Load content with truncation
             full_content = self.load_skill_content(skill, 
                                                    include_references=include_references,
                                                    include_scripts=include_scripts)
-            context += full_content
-            context += "\n\n═══════════════════════════════════════\n\n"
+            
+            # Truncate individual skill content if too large
+            if len(full_content) > MAX_SKILL_CONTENT:
+                full_content = full_content[:MAX_SKILL_CONTENT] + "\n\n[...skill content truncated for context efficiency...]\n"
+            
+            skill_block = skill_header + full_content + "\n\n═══════════════════════════════════════\n\n"
+            
+            # Check if adding this skill would exceed limit
+            if total_chars + len(skill_block) > MAX_TOTAL_CONTEXT:
+                # Add truncated version
+                available = MAX_TOTAL_CONTEXT - total_chars - 100  # 100 char buffer
+                if available > 500:  # Only add if we have meaningful space
+                    context += skill_block[:available] + "\n[...truncated...]\n"
+                break
+            
+            context += skill_block
+            total_chars += len(skill_block)
         
+        print(f"[SKILL_LOADER] Total context: {total_chars} chars (limit: {MAX_TOTAL_CONTEXT})")
         return context
     
     def list_all_skills(self) -> List[Tuple[str, str]]:

@@ -193,10 +193,11 @@ class IntentParser:
             TaskType.BUILD_FEATURE: [
                 "00",  # Forensic - analyze existing code
                 "01",  # Architect - design feature
-                "02",  # Builder - implement
+                "02",  # Builder - implement (with scaffolding)
                 "03",  # Designer - UI/UX
                 "04",  # Reviewer - code review
                 "05",  # Integrator - write files
+                "08",  # Shipper - verify build & npm install
                 "09"   # Tester - run tests
             ],
             

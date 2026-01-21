@@ -299,9 +299,23 @@ class CreateDirectoryTool(Tool):
             )
 
         try:
+            already_existed = full_path.exists() and full_path.is_dir()
+            
             if parents:
                 full_path.mkdir(parents=True, exist_ok=True)
             else:
+                if already_existed:
+                    # Directory exists, return success (idempotent)
+                    return ToolResult(
+                        success=True,
+                        data={
+                            "status": "already_exists",
+                            "message": f"Directory already exists: {path}",
+                            "path": path,
+                            "full_path": str(full_path),
+                            "parents": parents
+                        }
+                    )
                 full_path.mkdir(exist_ok=False)
 
             # Verify directory was created
@@ -309,7 +323,8 @@ class CreateDirectoryTool(Tool):
                 return ToolResult(
                     success=True,
                     data={
-                        "status": "success",
+                        "status": "created" if not already_existed else "already_exists",
+                        "message": f"Directory {'created' if not already_existed else 'already exists'}: {path}",
                         "path": path,
                         "full_path": str(full_path),
                         "parents": parents
@@ -321,9 +336,15 @@ class CreateDirectoryTool(Tool):
                     error="Failed to create directory"
                 )
         except FileExistsError:
+            # This shouldn't happen with exist_ok=True, but handle gracefully
             return ToolResult(
-                success=False,
-                error=f"Directory already exists: {path}"
+                success=True,  # Changed from False - directory exists is success
+                data={
+                    "status": "already_exists",
+                    "message": f"Directory already exists: {path}",
+                    "path": path,
+                    "full_path": str(full_path)
+                }
             )
         except PermissionError:
             return ToolResult(
@@ -335,3 +356,4 @@ class CreateDirectoryTool(Tool):
                 success=False,
                 error=f"Error creating directory: {str(e)}"
             )
+
